@@ -1,10 +1,15 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
+const fs = require('fs');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../chainquest.db');
 let db;
 
 function initDB() {
+  // Ensure the directory exists (important when DB_PATH points to a volume like /data/)
+  const dir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
   db = new DatabaseSync(DB_PATH);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');

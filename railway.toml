@@ -7,6 +7,3 @@ startCommand = "NODE_ENV=production node server/index.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
-
-[[volumes]]
-mountPath = "/data"
