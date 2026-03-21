@@ -7,6 +7,10 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
+if (!process.env.JWT_SECRET) {
+  console.error('⚠️  WARNING: JWT_SECRET is not set — auth endpoints will fail until it is configured.');
+}
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
   : ['http://localhost:5173', 'http://localhost:3001'];

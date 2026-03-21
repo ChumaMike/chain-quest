@@ -1,10 +1,14 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is required');
 const JWT_EXPIRES = '7d';
 const SALT_ROUNDS = 10;
+
+function getSecret() {
+  const s = process.env.JWT_SECRET;
+  if (!s) throw new Error('JWT_SECRET environment variable is not set');
+  return s;
+}
 
 async function hashPassword(password) {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -15,12 +19,12 @@ async function comparePassword(password, hash) {
 }
 
 function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  return jwt.sign(payload, getSecret(), { expiresIn: JWT_EXPIRES });
 }
 
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getSecret());
   } catch {
     return null;
   }
