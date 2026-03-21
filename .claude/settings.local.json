@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:abc-71.gitbook.io)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

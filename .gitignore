@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+chainquest.db
+chainquest.db-shm
+chainquest.db-wal
+artifacts/
+cache/
+typechain-types/

@@ -1,0 +1,175 @@
+import { useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { useMultiplayerStore } from '../store/multiplayerStore';
+import type { Question } from '../types';
+
+let socketInstance: Socket | null = null;
+
+export function getSocket(): Socket {
+  if (!socketInstance) {
+    socketInstance = io('/', {
+      transports: ['websocket', 'polling'],
+      autoConnect: false,
+    });
+  }
+  return socketInstance;
+}
+
+export function useSocket() {
+  const store = useMultiplayerStore();
+  const listenersAttached = useRef(false);
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    if (!socket.connected) socket.connect();
+    store.setSocketId(socket.id || '');
+
+    if (listenersAttached.current) return;
+    listenersAttached.current = true;
+
+    socket.on('connect', () => {
+      store.setSocketId(socket.id || '');
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn('[Socket] Disconnected:', reason);
+      if (reason === 'io server disconnect') {
+        socket.connect();
+      }
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('[Socket] Connection error:', err.message);
+    });
+
+    socket.on('room:created', ({ room }) => {
+      store.setRoom(room);
+    });
+
+    socket.on('room:joined', ({ room }) => {
+      store.setRoom(room);
+    });
+
+    socket.on('room:updated', ({ room }) => {
+      store.updateRoom(room);
+    });
+
+    socket.on('room:error', ({ message }) => {
+      console.warn('[Socket] Room error:', message);
+    });
+
+    socket.on('battle:countdown', ({ count }: { count: number }) => {
+      store.setCountdown(count);
+    });
+
+    socket.on('battle:start', ({ players, bossMaxHP }: { worldId: number; players: any[]; bossMaxHP: number }) => {
+      store.startBattle({ worldId: store.room?.worldId || 1, players, bossMaxHP });
+      store.setCountdown(null);
+    });
+
+    socket.on('battle:question', (data: {
+      question: Question;
+      index: number;
+      total: number;
+      bossHP: number;
+      bossMaxHP: number;
+    }) => {
+      store.setQuestion(data);
+    });
+
+    socket.on('battle:timer', ({ remaining }: { remaining: number }) => {
+      store.setTimeRemaining(remaining);
+    });
+
+    socket.on('battle:player-answered', ({ playerId }: { playerId: string }) => {
+      const { room } = store;
+      if (!room) return;
+      const updated = {
+        ...room,
+        players: room.players.map(p => p.id === playerId ? { ...p, hasAnswered: true } : p),
+      };
+      store.updateRoom(updated);
+    });
+
+    socket.on('battle:reveal', (data: any) => {
+      store.setReveal(data);
+      const { room } = store;
+      if (!room) return;
+      const updated = {
+        ...room,
+        players: room.players.map(p => {
+          const result = data.results[p.id];
+          if (!result) return p;
+          return { ...p, score: result.newScore, currentHP: result.newHP, streak: result.newStreak };
+        }),
+      };
+      store.updateRoom(updated);
+    });
+
+    socket.on('battle:boss-hit', ({ bossHP }: { totalDamage: number; bossHP: number }) => {
+      store.updateBossHP(bossHP);
+    });
+
+    socket.on('battle:eliminated', ({ playerId }: { playerId: string }) => {
+      const { room } = store;
+      if (!room) return;
+      store.updateRoom({
+        ...room,
+        players: room.players.map(p => p.id === playerId ? { ...p, isEliminated: true } : p),
+      });
+    });
+
+    socket.on('battle:end', ({ rankings, bossDefeated }: { rankings: any[]; bossDefeated: boolean }) => {
+      store.setRankings(rankings, bossDefeated);
+    });
+
+    return () => {
+      // Don't disconnect on component unmount — socket is singleton
+    };
+  }, []);
+
+  const socket = getSocket();
+
+  return {
+    socket,
+    createRoom: (displayName: string, heroClass: string, worldId: number) => {
+      socket.emit('room:create', { displayName, heroClass, worldId });
+    },
+    joinRoom: (code: string, displayName: string, heroClass: string) => {
+      socket.emit('room:join', { code, displayName, heroClass });
+    },
+    leaveRoom: () => {
+      socket.emit('room:leave');
+      useMultiplayerStore.getState().reset();
+    },
+    setReady: (code: string, ready: boolean) => {
+      socket.emit('lobby:ready', { code, ready });
+    },
+    startGame: (code: string) => {
+      socket.emit('battle:start', { code });
+    },
+    submitAnswer: (code: string, questionId: string, answerIndex: number, timeRemaining: number) => {
+      socket.emit('battle:answer', { code, questionId, answerIndex, timeRemaining });
+      useMultiplayerStore.getState().setAnswered(true);
+    },
+    joinWorld: (playerData: any) => {
+      socket.emit('world:join', playerData);
+    },
+    moveInWorld: (x: number, y: number, direction: string, isMoving: boolean) => {
+      socket.emit('world:move', { x, y, direction, isMoving });
+    },
+    leaveWorld: () => {
+      socket.emit('world:leave');
+    },
+    sendWorldChat: (message: string) => {
+      socket.emit('world:chat', { message });
+    },
+    sendEmote: (emote: string) => {
+      socket.emit('world:emote', { emote });
+    },
+    announceBossClear: (worldId: number, worldName: string, bossName: string) => {
+      socket.emit('world:boss-clear', { worldId, worldName, bossName });
+    },
+  };
+}
