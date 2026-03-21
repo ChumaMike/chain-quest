@@ -7,9 +7,12 @@ import { useSocket } from '../../hooks/useSocket';
 import PhaserGame from '../../game/PhaserGame';
 import ProgressBar from '../ui/ProgressBar';
 import { WORLDS } from '../../data/curriculum';
+import OpenWorldScene from '../../game/scenes/OpenWorldScene';
+import { isMobile } from '../../utils/device';
 
 interface ChatMsg { id: number; displayName: string; heroClass: string; message: string; self?: boolean }
 const EMOTES = ['👋', '🔥', '💀', '😎', '⚡', '🏆'];
+const IS_MOBILE = isMobile();
 
 export default function OpenWorldPage() {
   const { user, token } = useAuthStore();
@@ -31,6 +34,8 @@ export default function OpenWorldPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const seenZones = useRef<Set<string>>(new Set());
+  const joystickZoneRef = useRef<HTMLDivElement>(null);
+  const joystickOrigin = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!user || !token) return;
@@ -164,28 +169,28 @@ export default function OpenWorldPage() {
       </div>
 
       {/* HUD overlay */}
-      <div className="absolute top-16 left-4 z-10 space-y-2">
+      <div className={`absolute top-16 left-2 sm:left-4 z-10 space-y-1.5 sm:space-y-2 game-hud ${IS_MOBILE ? 'w-36' : 'w-48'}`}>
         {/* HP bar */}
-        <div className="neon-border-green bg-dark-900/80 rounded-lg px-3 py-2 w-48 backdrop-blur-sm">
+        <div className="neon-border-green bg-dark-900/80 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm">
           <div className="flex justify-between mb-1">
             <span className="font-orbitron text-xs text-neon-green">HP</span>
             <span className="font-mono text-xs text-neon-green">{profile.level ? profile.level * 20 + 80 : 100}</span>
           </div>
-          <ProgressBar value={profile.level ? profile.level * 20 + 80 : 100} max={profile.level ? profile.level * 20 + 80 : 100} color="#00ff88" height={6} />
+          <ProgressBar value={profile.level ? profile.level * 20 + 80 : 100} max={profile.level ? profile.level * 20 + 80 : 100} color="#00ff88" height={IS_MOBILE ? 4 : 6} />
         </div>
 
         {/* XP bar */}
-        <div className="neon-border-cyan bg-dark-900/80 rounded-lg px-3 py-2 w-48 backdrop-blur-sm">
+        <div className="neon-border-cyan bg-dark-900/80 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm">
           <div className="flex justify-between mb-1">
             <span className="font-orbitron text-xs text-neon-cyan">LVL {currentLevel}</span>
             <span className="font-mono text-xs text-slate-500">{totalXP}/{xpToNext}</span>
           </div>
-          <ProgressBar value={totalXP} max={xpToNext} color="#00d4ff" height={6} />
+          <ProgressBar value={totalXP} max={xpToNext} color="#00d4ff" height={IS_MOBILE ? 4 : 6} />
         </div>
 
         {/* Completed worlds */}
-        <div className="neon-border-purple bg-dark-900/80 rounded-lg px-3 py-2 w-48 backdrop-blur-sm">
-          <div className="font-orbitron text-xs text-neon-purple mb-1">WORLDS CLEARED</div>
+        <div className="neon-border-purple bg-dark-900/80 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm">
+          <div className="font-orbitron text-xs text-neon-purple mb-1">WORLDS</div>
           <div className="flex gap-1 flex-wrap">
             {[1,2,3,4,5,6,7].map(w => (
               <span key={w} className={`text-xs font-mono ${completedWorlds.includes(w) ? 'text-neon-green' : 'text-slate-700'}`}>
@@ -196,14 +201,14 @@ export default function OpenWorldPage() {
         </div>
 
         {/* Current zone */}
-        <div className="bg-dark-900/70 rounded-lg px-3 py-1.5 w-48 backdrop-blur-sm border border-white/10">
-          <div className="font-orbitron text-xs text-slate-500">LOCATION</div>
+        <div className="bg-dark-900/70 rounded-lg px-2 sm:px-3 py-1.5 backdrop-blur-sm border border-white/10">
+          <div className="font-orbitron text-xs text-slate-500">ZONE</div>
           <div className="font-orbitron text-xs text-white truncate">{currentZone}</div>
         </div>
       </div>
 
       {/* Chat overlay — bottom left */}
-      <div className="absolute bottom-14 left-4 z-20 w-72">
+      <div className={`absolute z-20 ${IS_MOBILE ? 'bottom-36 left-2 right-2' : 'bottom-14 left-4 w-72'}`}>
         <AnimatePresence>
           {chatOpen && (
             <motion.div
@@ -328,10 +333,10 @@ export default function OpenWorldPage() {
           return (
             <motion.div
               key={zoneCard.zone}
-              initial={{ opacity: 0, x: 80 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 80 }}
-              className="absolute top-20 right-4 z-20 w-72"
+              initial={IS_MOBILE ? { opacity: 0, y: 80 } : { opacity: 0, x: 80 }}
+              animate={IS_MOBILE ? { opacity: 1, y: 0 } : { opacity: 1, x: 0 }}
+              exit={IS_MOBILE ? { opacity: 0, y: 80 } : { opacity: 0, x: 80 }}
+              className={IS_MOBILE ? 'absolute bottom-36 left-2 right-2 z-20' : 'absolute top-20 right-4 z-20 w-72'}
             >
               <div className="bg-dark-900/95 backdrop-blur-sm rounded-xl border border-white/15 p-4">
                 <div className="flex items-start justify-between mb-2">
@@ -395,10 +400,71 @@ export default function OpenWorldPage() {
         )}
       </AnimatePresence>
 
-      {/* Controls hint */}
-      <div className="absolute bottom-4 right-4 z-10 text-slate-700 text-xs font-mono">
-        WASD / ARROWS · Scroll to zoom
-      </div>
+      {/* Controls hint — desktop only */}
+      {!IS_MOBILE && (
+        <div className="absolute bottom-4 right-4 z-10 text-slate-700 text-xs font-mono">
+          WASD / ARROWS · Scroll to zoom
+        </div>
+      )}
+
+      {/* ── Mobile controls ─────────────────────────────────── */}
+      {IS_MOBILE && (
+        <>
+          {/* Virtual D-Pad — bottom left */}
+          <div
+            ref={joystickZoneRef}
+            className="joystick-zone absolute z-30 pb-safe"
+            style={{ left: 16, bottom: 16 + (window.innerHeight < 700 ? 0 : 8) }}
+            onPointerDown={(e) => {
+              const rect = joystickZoneRef.current!.getBoundingClientRect();
+              joystickOrigin.current = {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2,
+              };
+              joystickZoneRef.current!.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (!joystickOrigin.current) return;
+              const dx = e.clientX - joystickOrigin.current.x;
+              const dy = e.clientY - joystickOrigin.current.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              const maxDist = 40;
+              const norm = dist > maxDist ? maxDist / dist : 1;
+              OpenWorldScene.joystickInput = { vx: (dx * norm) / maxDist, vy: (dy * norm) / maxDist };
+            }}
+            onPointerUp={() => {
+              joystickOrigin.current = null;
+              OpenWorldScene.joystickInput = { vx: 0, vy: 0 };
+            }}
+            onPointerCancel={() => {
+              joystickOrigin.current = null;
+              OpenWorldScene.joystickInput = { vx: 0, vy: 0 };
+            }}
+          >
+            {/* Outer ring */}
+            <div className="relative w-24 h-24 rounded-full border-2 border-white/20 bg-black/30 backdrop-blur-sm flex items-center justify-center">
+              {/* Directional arrows */}
+              <span className="absolute top-1 left-1/2 -translate-x-1/2 text-white/40 text-xs">▲</span>
+              <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-white/40 text-xs">▼</span>
+              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-white/40 text-xs">◀</span>
+              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-white/40 text-xs">▶</span>
+              {/* Inner dot */}
+              <div className="w-8 h-8 rounded-full bg-neon-cyan/30 border border-neon-cyan/50" />
+            </div>
+          </div>
+
+          {/* FIGHT button — bottom right */}
+          <button
+            className="joystick-zone absolute z-30 right-4 pb-safe flex items-center justify-center w-20 h-20 rounded-full font-orbitron text-xs font-black border-2 border-neon-orange/60 bg-neon-orange/20 active:bg-neon-orange/40 backdrop-blur-sm text-neon-orange"
+            style={{ bottom: 16 }}
+            onPointerDown={() => {
+              OpenWorldScene.events.emit('mobile:fight');
+            }}
+          >
+            ⚔<br />FIGHT
+          </button>
+        </>
+      )}
     </div>
   );
 }

@@ -44,6 +44,9 @@ export default class OpenWorldScene extends Phaser.Scene {
   // Event bus for React communication
   public static events = new Phaser.Events.EventEmitter();
 
+  // Virtual joystick input from React overlay (mobile)
+  public static joystickInput = { vx: 0, vy: 0 };
+
   constructor() {
     super({ key: 'OpenWorldScene' });
   }
@@ -401,11 +404,37 @@ export default class OpenWorldScene extends Phaser.Scene {
       right: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D),
     };
 
-    // Scroll to zoom
+    // Scroll to zoom (desktop)
     this.input.on('wheel', (_: any, __: any, ___: any, deltaY: number) => {
       const cam = this.cameras.main;
       const newZoom = Phaser.Math.Clamp(cam.zoom - deltaY * 0.001, 0.8, 3.5);
       cam.setZoom(newZoom);
+    });
+
+    // Pinch-to-zoom (mobile)
+    let lastPinchDist = 0;
+    this.input.on('pointermove', () => {
+      const ptrs = this.input.manager.pointers;
+      const active = ptrs.filter(p => p.isDown);
+      if (active.length === 2) {
+        const dx = active[0].x - active[1].x;
+        const dy = active[0].y - active[1].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (lastPinchDist > 0) {
+          const delta = dist - lastPinchDist;
+          const cam = this.cameras.main;
+          cam.setZoom(Phaser.Math.Clamp(cam.zoom + delta * 0.005, 0.8, 3.5));
+        }
+        lastPinchDist = dist;
+      } else {
+        lastPinchDist = 0;
+      }
+    });
+
+    // Mobile fight button
+    OpenWorldScene.events.on('mobile:fight', () => {
+      if (this.battleTriggerCooldown > 0) return;
+      this.checkBattleTriggers();
     });
   }
 
@@ -621,6 +650,12 @@ export default class OpenWorldScene extends Phaser.Scene {
     if (this.cursors.up.isDown || this.wasd.up.isDown) vy = -speed;
     else if (this.cursors.down.isDown || this.wasd.down.isDown) vy = speed;
 
+    // Fall back to virtual joystick if no keyboard input
+    if (vx === 0 && vy === 0) {
+      vx = OpenWorldScene.joystickInput.vx * speed;
+      vy = OpenWorldScene.joystickInput.vy * speed;
+    }
+
     if (vx !== 0 && vy !== 0) {
       vx *= 0.707;
       vy *= 0.707;
@@ -704,7 +739,8 @@ export default class OpenWorldScene extends Phaser.Scene {
   updateMinimap() {
     if (!this.minimap) return;
     const camWidth = this.cameras.main.width;
-    const mapW = 120, mapH = 90;
+    const isMob = camWidth < 768;
+    const mapW = isMob ? 80 : 120, mapH = isMob ? 60 : 90;
     const mapX = camWidth - mapW - 10;
     const mapY = 40;
     const scaleX = mapW / WORLD_SIZE.width;

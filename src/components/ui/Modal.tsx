@@ -25,7 +25,7 @@ export default function Modal({ open, onClose, children, maxWidth = 'max-w-lg' }
             exit={{ scale: 0.85, opacity: 0 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
-            className={`w-full ${maxWidth} neon-border-cyan bg-dark-800 rounded-xl p-6`}
+            className={`w-full ${maxWidth} neon-border-cyan bg-dark-800 rounded-xl p-6 max-h-[90vh] overflow-y-auto`}
           >
             {children}
           </motion.div>

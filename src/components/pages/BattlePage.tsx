@@ -30,6 +30,7 @@ export default function BattlePage() {
   const [showDefeat, setShowDefeat] = useState(false);
   const [claimResult, setClaimResult] = useState<any>(null);
   const [battlePhase, setBattlePhase] = useState<'intro' | 'fighting'>('intro');
+  const [streakAnim, setStreakAnim] = useState(false);
   const { claimReward } = useWeb3();
 
   const wId = parseInt(worldId || '1');
@@ -113,6 +114,14 @@ export default function BattlePage() {
     setClaimResult(result);
   };
 
+  useEffect(() => {
+    if (battle.streak > 0) {
+      setStreakAnim(true);
+      const t = setTimeout(() => setStreakAnim(false), 400);
+      return () => clearTimeout(t);
+    }
+  }, [battle.streak]);
+
   useCountdown(battle.phase === 'question', () => useGameStore.getState().tickTimer(), 1000);
 
   if (!world || battle.phase === 'idle') {
@@ -132,11 +141,11 @@ export default function BattlePage() {
             animate={{ opacity: 1, scale: 1 }}
             className="max-w-md w-full"
           >
-            <div className="neon-border-cyan bg-dark-800 rounded-2xl p-8 text-center">
+            <div className="neon-border-cyan bg-dark-800 rounded-2xl p-5 sm:p-8 text-center overflow-y-auto max-h-[90vh]">
               {/* World header */}
               <div className="mb-4">
-                <div className="text-5xl mb-3">{world.emoji}</div>
-                <div className="font-orbitron font-bold text-lg mb-0.5" style={{ color: world.color }}>
+                <div className="text-4xl sm:text-5xl mb-3">{world.emoji}</div>
+                <div className="font-orbitron font-bold text-base sm:text-lg mb-0.5" style={{ color: world.color }}>
                   WORLD {world.id}: {world.name.toUpperCase()}
                 </div>
                 <div className="font-orbitron text-xs text-slate-400 tracking-widest">{world.topic.toUpperCase()}</div>
@@ -195,7 +204,7 @@ export default function BattlePage() {
 
           {/* Boss display */}
           <div className="text-center mb-4 relative">
-            <div className={`text-7xl boss-float mb-2`}>{world.boss.emoji}</div>
+            <div className={`text-5xl sm:text-7xl boss-float mb-2`}>{world.boss.emoji}</div>
             <div className="font-orbitron font-bold text-sm mb-2" style={{ color: world.color }}>{world.boss.name}</div>
             <div className="max-w-xs mx-auto">
               <ProgressBar value={battle.bossHP} max={battle.bossMaxHP} color={world.color} height={10} showText label="BOSS HP" />
@@ -220,7 +229,7 @@ export default function BattlePage() {
                 <ProgressBar value={battle.playerHP} max={battle.maxHP} color={heroStats.color} height={8} showText />
               </div>
               {/* Streak */}
-              <div className={`text-center ${battle.streak >= 3 ? 'streak-tier-up' : ''}`}>
+              <div className={`text-center ${streakAnim ? 'streak-tier-up' : ''}`}>
                 <div className="font-orbitron font-black text-lg" style={{ color: battle.multiplier >= 3 ? '#ff6b35' : battle.multiplier >= 2 ? '#ffb800' : battle.multiplier >= 1.5 ? '#00ff88' : '#888' }}>
                   x{battle.multiplier}
                 </div>
@@ -285,7 +294,7 @@ export default function BattlePage() {
 
               {/* Hint button (Archivist) */}
               {heroClass === 'archivist' && battle.phase === 'question' && (
-                <button onClick={handleHint} disabled={useGameStore.getState().hintsRemaining === 0} className="mt-3 text-xs font-orbitron text-neon-amber border border-neon-amber/30 px-3 py-1 rounded hover:bg-neon-amber/10 disabled:opacity-30 transition-all">
+                <button onClick={handleHint} disabled={useGameStore.getState().hintsRemaining === 0} className="mt-3 w-full sm:w-auto text-xs font-orbitron text-neon-amber border border-neon-amber/30 px-3 py-2 rounded hover:bg-neon-amber/10 disabled:opacity-30 transition-all">
                   💡 HINT ({useGameStore.getState().hintsRemaining} left)
                 </button>
               )}
