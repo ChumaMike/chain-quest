@@ -2,15 +2,22 @@ const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../chainquest.db');
+const FALLBACK_PATH = path.join(__dirname, '../chainquest.db');
+let DB_PATH = process.env.DB_PATH || FALLBACK_PATH;
 let db;
 
 function initDB() {
-  // Ensure the directory exists (important when DB_PATH points to a volume like /data/)
-  const dir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  // Ensure the directory exists; fall back to local path if it can't be created
+  try {
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    console.warn(`[DB] Cannot create directory for ${DB_PATH}, falling back to ${FALLBACK_PATH}:`, e.message);
+    DB_PATH = FALLBACK_PATH;
+  }
 
   db = new DatabaseSync(DB_PATH);
+  console.log(`[DB] Using database at: ${DB_PATH}`);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
 
