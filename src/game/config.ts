@@ -2,6 +2,9 @@ import Phaser from 'phaser';
 import PreloadScene from './scenes/PreloadScene';
 import OpenWorldScene from './scenes/OpenWorldScene';
 import UIScene from './scenes/UIScene';
+import BlockRacerScene from './scenes/BlockRacerScene';
+import NodeDefenderScene from './scenes/NodeDefenderScene';
+import HashPuzzleScene from './scenes/HashPuzzleScene';
 
 export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig {
   return {
@@ -19,7 +22,7 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
         debug: false,
       },
     },
-    scene: [PreloadScene, OpenWorldScene, UIScene],
+    scene: [PreloadScene, OpenWorldScene, UIScene, BlockRacerScene, NodeDefenderScene, HashPuzzleScene],
     scale: {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,

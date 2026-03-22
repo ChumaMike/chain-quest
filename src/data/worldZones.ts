@@ -78,3 +78,10 @@ export const HUB_CONFIG = {
 
 export const WORLD_SPAWN = { x: 1600, y: 980 }; // default spawn (hub center)
 export const WORLD_SIZE = { width: 3200, height: 2400 };
+
+// Mini-game portals placed in the Central Hub zone
+export const MINI_GAME_PORTALS = [
+  { x: 960,  y: 900, radius: 40, sceneKey: 'BlockRacerScene',   color: 0x00d4ff, label: '🏎 BLOCK RACER' },
+  { x: 1600, y: 900, radius: 40, sceneKey: 'NodeDefenderScene', color: 0xff8800, label: '🛡 NODE DEFENDER' },
+  { x: 2240, y: 900, radius: 40, sceneKey: 'HashPuzzleScene',   color: 0x8b5cf6, label: '🔐 HASH PUZZLE' },
+];

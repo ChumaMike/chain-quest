@@ -4,7 +4,6 @@ import { createPhaserConfig } from './config';
 import OpenWorldScene from './scenes/OpenWorldScene';
 import { useSocket } from '../hooks/useSocket';
 import { useGameStore } from '../store/gameStore';
-import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 
 interface PhaserGameProps {
@@ -64,6 +63,19 @@ export default function PhaserGame({ playerData, completedWorlds, onBattleTrigge
     // Study NPC talk
     OpenWorldScene.events.on('npc:talk', ({ worldId }: { worldId: number }) => {
       onNpcTalk?.(worldId);
+    });
+
+    // Mini-game completion — award XP, CQT, and achievements
+    OpenWorldScene.events.on('minigame:complete', ({ xpGained, cqtGained, scene, score, solved, wavesCleared }: { xpGained: number; cqtGained: number; scene?: string; score?: number; solved?: number; wavesCleared?: number }) => {
+      if (xpGained > 0) useGameStore.getState().addXP(xpGained);
+      if (cqtGained > 0) {
+        console.log(`[MiniGame] Earned ${cqtGained} CQT — claim via wallet when connected`);
+      }
+      // Achievement triggers
+      const store = useGameStore.getState();
+      if (scene === 'BlockRacerScene' && (score ?? 0) >= 800) store.unlockAchievement('block_racer_pro');
+      if (scene === 'HashPuzzleScene' && (solved ?? 0) >= 5) store.unlockAchievement('hash_master');
+      if (scene === 'NodeDefenderScene' && (wavesCleared ?? 0) >= 5) store.unlockAchievement('node_defender');
     });
 
     // Socket world events → Phaser

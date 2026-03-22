@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { BattleState, BattlePhase, Question, AnswerResult, StreakMultiplier } from '../types';
 import { HEROES } from '../data/heroes';
 import { WORLDS } from '../data/curriculum';
+import { ACHIEVEMENTS } from '../data/achievements';
 
 interface GameStore {
   battle: BattleState;
@@ -11,6 +12,8 @@ interface GameStore {
   totalXP: number;
   hintsRemaining: number;
   xpBoostActive: boolean;
+  unlockedAchievements: string[];
+  totalHintsUsed: number;
 
   startBattle: (worldId: number, heroClassId: string, mode?: 'solo' | 'multiplayer') => void;
   submitAnswer: (answerIndex: number) => AnswerResult | null;
@@ -25,6 +28,8 @@ interface GameStore {
   claimCQT: (worldId: number) => void;
   addXP: (amount: number) => void;
   setXPBoost: (active: boolean) => void;
+  unlockAchievement: (id: string) => void;
+  checkAchievements: () => void;
 }
 
 const defaultBattle: BattleState = {
@@ -71,6 +76,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   totalXP: 0,
   hintsRemaining: 0,
   xpBoostActive: false,
+  unlockedAchievements: [],
+  totalHintsUsed: 0,
 
   startBattle: (worldId, heroClassId, mode = 'solo') => {
     const world = WORLDS.find(w => w.id === worldId);
@@ -189,6 +196,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       },
     }));
 
+    if (correct) {
+      get().checkAchievements();
+    }
+
     return result;
   },
 
@@ -233,12 +244,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   useHint: () => {
-    const { battle, hintsRemaining } = get();
+    const { battle, hintsRemaining, totalHintsUsed } = get();
     if (hintsRemaining <= 0 || !battle.currentQuestion) return null;
     const q = battle.currentQuestion;
     const wrongIndices = [0, 1, 2, 3].filter(i => i !== q.correctIndex && i !== battle.selectedAnswerIndex);
     const toEliminate = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
-    set({ hintsRemaining: hintsRemaining - 1 });
+    const newTotalHintsUsed = totalHintsUsed + 1;
+    set({ hintsRemaining: hintsRemaining - 1, totalHintsUsed: newTotalHintsUsed });
+    if (newTotalHintsUsed >= 10) {
+      get().unlockAchievement('archivist_wisdom');
+    }
     return toEliminate;
   },
 
@@ -278,6 +293,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       : [...completedWorlds, worldId];
 
     set({ worldProgress: { ...worldProgress, [worldId]: newProgress }, completedWorlds: newCompleted });
+    get().checkAchievements();
   },
 
   claimCQT: (worldId) => {
@@ -298,4 +314,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   setXPBoost: (active) => set({ xpBoostActive: active }),
+
+  unlockAchievement: (id) => {
+    const { unlockedAchievements } = get();
+    if (unlockedAchievements.includes(id)) return;
+    // Verify the ID is a known achievement before storing it
+    const known = ACHIEVEMENTS.find(a => a.id === id);
+    if (!known) return;
+    set({ unlockedAchievements: [...unlockedAchievements, id] });
+  },
+
+  checkAchievements: () => {
+    const { completedWorlds, battle, unlockAchievement } = get();
+
+    // Tier 1 — Exploration
+    if (completedWorlds.length >= 1) unlockAchievement('first_blood');
+    if (completedWorlds.includes(1)) unlockAchievement('blockchain_basics');
+    if (completedWorlds.includes(3)) unlockAchievement('defi_pioneer');
+
+    // Tier 3 — Dedication
+    if (completedWorlds.length >= 7) unlockAchievement('world_champion');
+
+    // Tier 2 — Mastery (streak)
+    if (battle.streak >= 5) unlockAchievement('hot_streak');
+  },
 }));

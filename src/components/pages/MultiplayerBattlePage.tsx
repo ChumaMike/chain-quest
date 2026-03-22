@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMultiplayerStore } from '../../store/multiplayerStore';
 import { useSocket } from '../../hooks/useSocket';
-import { useCountdown } from '../../hooks/useCountdown';
 import { WORLDS } from '../../data/curriculum';
 import { HEROES } from '../../data/heroes';
 import ProgressBar from '../ui/ProgressBar';
@@ -17,24 +16,26 @@ export default function MultiplayerBattlePage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const {
-    room, currentQuestion, questionIndex, totalQuestions,
+    room, localSocketId, currentQuestion, questionIndex, totalQuestions,
     timeRemaining, bossHP, bossMaxHP, latestReveal, rankings,
-    answeredThisRound,
+    answeredThisRound, isReconnecting, reconnectAttempt,
   } = useMultiplayerStore();
   const { submitAnswer: socketSubmit } = useSocket();
 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [phase, setPhase] = useState<'question' | 'reveal' | 'end'>('question');
   const [damagePopups, setDamagePopups] = useState<DamagePopup[]>([]);
-  const [popupCounter, setPopupCounter] = useState(0);
+  const popupCounterRef = useRef(0);
   const [showEnd, setShowEnd] = useState(false);
+  const [isEliminated, setIsEliminated] = useState(false);
 
-  const myPlayer = room?.players.find(p => p.isHost === false || true); // we find ourselves by checking below
+  // Correctly identify the local player using socket ID
+  const myPlayer = room?.players.find(p => p.id === localSocketId);
   const world = room ? WORLDS.find(w => w.id === room.worldId) : null;
 
   useEffect(() => {
-    if (!room || !code) { navigate('/multiplayer'); }
-  }, []);
+    if (!room || !code) navigate('/multiplayer');
+  }, [room, code, navigate]);
 
   useEffect(() => {
     if (currentQuestion) {
@@ -58,12 +59,18 @@ export default function MultiplayerBattlePage() {
     }
   }, [rankings]);
 
+  // Track if the local player gets eliminated
+  useEffect(() => {
+    if (myPlayer?.isEliminated && !isEliminated) {
+      setIsEliminated(true);
+    }
+  }, [myPlayer?.isEliminated]);
+
   const addPopup = useCallback((text: string, color: string) => {
-    const id = popupCounter;
-    setPopupCounter(c => c + 1);
+    const id = popupCounterRef.current++;
     setDamagePopups(p => [...p, { id, text, color }]);
     setTimeout(() => setDamagePopups(p => p.filter(d => d.id !== id)), 1500);
-  }, [popupCounter]);
+  }, []);
 
   const handleAnswer = (idx: number) => {
     if (phase !== 'question' || selectedIndex !== null || !currentQuestion || answeredThisRound) return;
@@ -72,14 +79,9 @@ export default function MultiplayerBattlePage() {
   };
 
   const timerPct = currentQuestion ? (timeRemaining / (currentQuestion.timeLimitSec || 30)) * 100 : 0;
-
-  // Derive who has answered from room players
   const answeredCount = room?.players.filter(p => p.hasAnswered).length || 0;
-
-  // Derive per-player scores from room players
+  const activeCount = room?.players.filter(p => !p.isEliminated).length || 0;
   const playerList = room?.players || [];
-
-  useCountdown(phase === 'question' && !!currentQuestion, () => {}, 1000);
 
   if (!world || !room) {
     return (
@@ -87,6 +89,12 @@ export default function MultiplayerBattlePage() {
         <div className="text-center">
           <div className="spinner w-10 h-10 mx-auto mb-3" />
           <div className="font-orbitron text-neon-cyan text-sm">CONNECTING TO BATTLE...</div>
+          <button
+            onClick={() => navigate('/multiplayer')}
+            className="mt-6 text-slate-600 text-xs font-mono underline hover:text-slate-400"
+          >
+            ← Leave
+          </button>
         </div>
       </div>
     );
@@ -133,27 +141,61 @@ export default function MultiplayerBattlePage() {
             </div>
           </div>
 
-          {/* Live scoreboard mini */}
+          {/* Live scoreboard */}
           <div className="neon-border-purple bg-dark-800 rounded-xl p-3 mb-4">
-            <div className="font-orbitron text-xs text-neon-purple mb-2">LIVE SCORES — {answeredCount}/{room.players.length} answered</div>
+            <div className="font-orbitron text-xs text-neon-purple mb-2">
+              LIVE SCORES — {answeredCount}/{activeCount} answered
+            </div>
             <div className="flex flex-wrap gap-2">
               {[...playerList]
                 .sort((a, b) => b.score - a.score)
                 .map(p => {
                   const hero = HEROES.find(h => h.id === p.heroClass) || HEROES[0];
+                  const isMe = p.id === localSocketId;
                   return (
-                    <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${p.hasAnswered ? 'border-neon-green/40 bg-neon-green/5' : 'border-white/10 bg-dark-900'}`}>
-                      <span>{hero.emoji}</span>
+                    <div
+                      key={p.id}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all
+                        ${p.isEliminated ? 'border-red-500/20 bg-red-500/5 opacity-50' :
+                          p.hasAnswered ? 'border-neon-green/40 bg-neon-green/5' :
+                          'border-white/10 bg-dark-900'}
+                        ${isMe ? 'ring-1 ring-neon-cyan/30' : ''}
+                      `}
+                    >
+                      <span className={p.isEliminated ? 'grayscale' : ''}>{hero.emoji}</span>
                       <div>
-                        <div className="font-orbitron text-xs" style={{ color: hero.color }}>{p.displayName.slice(0, 8)}</div>
+                        <div
+                          className={`font-orbitron text-xs ${p.isEliminated ? 'line-through text-slate-600' : ''}`}
+                          style={{ color: isMe ? '#00d4ff' : p.isEliminated ? undefined : hero.color }}
+                        >
+                          {p.displayName.slice(0, 8)}{isMe ? ' ★' : ''}
+                        </div>
                         <div className="font-mono text-xs text-slate-500">{p.score.toLocaleString()}</div>
                       </div>
-                      {p.hasAnswered && <span className="text-neon-green text-xs">✓</span>}
+                      {p.isEliminated && <span className="text-red-500 text-xs">✗</span>}
+                      {!p.isEliminated && p.hasAnswered && <span className="text-neon-green text-xs">✓</span>}
+                      {p.streak >= 2 && !p.isEliminated && (
+                        <span className="text-neon-amber text-xs font-orbitron">{p.streak}x</span>
+                      )}
                     </div>
                   );
                 })}
             </div>
           </div>
+
+          {/* Eliminated banner for local player */}
+          <AnimatePresence>
+            {isEliminated && phase !== 'end' && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mb-4 px-4 py-3 rounded-xl border border-red-500/40 bg-red-500/10 text-center"
+              >
+                <div className="font-orbitron text-sm text-red-400 mb-1">💀 YOU WERE ELIMINATED</div>
+                <div className="font-mono text-xs text-slate-500">Spectating the rest of the battle...</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Timer */}
           <div className="mb-4">
@@ -162,7 +204,7 @@ export default function MultiplayerBattlePage() {
                 className={`h-full rounded-full timer-bar ${timerPct < 25 ? 'urgent' : ''}`}
                 style={{ width: `${timerPct}%`, background: timerPct < 25 ? '#ff2244' : timerPct < 60 ? '#ffb800' : '#00d4ff' }}
                 animate={{ width: `${timerPct}%` }}
-                transition={{ duration: 1, ease: 'linear' }}
+                transition={{ duration: 0.9, ease: 'linear' }}
               />
             </div>
             <div className="flex justify-between mt-0.5 font-mono text-xs text-slate-600">
@@ -182,20 +224,21 @@ export default function MultiplayerBattlePage() {
               <div className="space-y-3">
                 {currentQuestion.options.map((opt, i) => {
                   const isSelected = selectedIndex === i;
-                  const isCorrect = phase === 'reveal' && i === currentQuestion.correctIndex;
+                  const isCorrect = phase === 'reveal' && i === (currentQuestion as any).correctIndex;
                   const isWrong = phase === 'reveal' && isSelected && !isCorrect;
+                  const disabled = phase === 'reveal' || answeredThisRound || isEliminated;
 
                   return (
                     <motion.button
                       key={i}
-                      disabled={phase === 'reveal' || answeredThisRound}
+                      disabled={disabled}
                       onClick={() => handleAnswer(i)}
-                      whileHover={phase === 'question' && !answeredThisRound ? { x: 4 } : {}}
+                      whileHover={!disabled ? { x: 4 } : {}}
                       className={`answer-btn w-full text-left px-4 py-3 rounded-lg transition-all font-mono text-sm
                         ${isCorrect ? 'correct' : ''}
                         ${isWrong ? 'wrong' : ''}
                         ${isSelected && phase === 'question' ? 'border border-neon-cyan/50 bg-neon-cyan/10' : ''}
-                        ${phase === 'question' && !answeredThisRound ? 'bg-dark-700 hover:bg-dark-600' : 'bg-dark-700'}
+                        ${!disabled ? 'bg-dark-700 hover:bg-dark-600' : 'bg-dark-700'}
                         ${answeredThisRound && !isSelected && phase === 'question' ? 'opacity-50' : ''}
                       `}
                     >
@@ -208,9 +251,15 @@ export default function MultiplayerBattlePage() {
                 })}
               </div>
 
-              {answeredThisRound && phase === 'question' && (
+              {answeredThisRound && phase === 'question' && !isEliminated && (
                 <div className="mt-3 text-center text-neon-amber font-orbitron text-xs animate-pulse">
-                  ⏳ Waiting for others... ({answeredCount}/{room.players.length})
+                  ⏳ Waiting for others... ({answeredCount}/{activeCount} answered · {timeRemaining}s left)
+                </div>
+              )}
+
+              {isEliminated && phase === 'question' && (
+                <div className="mt-3 text-center text-slate-600 font-mono text-xs">
+                  Spectating — {answeredCount}/{activeCount} answered
                 </div>
               )}
             </div>
@@ -227,6 +276,22 @@ export default function MultiplayerBattlePage() {
                 <div className="font-orbitron text-sm font-bold mb-1 text-neon-green">
                   ✓ CORRECT ANSWER REVEALED
                 </div>
+                {/* Show the local player's result */}
+                {myPlayer && latestReveal.results[myPlayer.id] && (
+                  <div className="mb-2 font-orbitron text-xs">
+                    {latestReveal.results[myPlayer.id].correct ? (
+                      <span className="text-neon-green">
+                        +{latestReveal.results[myPlayer.id].damageDealt * 10 + latestReveal.results[myPlayer.id].firstBonus} pts
+                        {latestReveal.results[myPlayer.id].wasFirst && ' · ⚡ FIRST!'}
+                        {(latestReveal.results[myPlayer.id].newStreak || 0) >= 2 && ` · ${latestReveal.results[myPlayer.id].newStreak}x STREAK`}
+                      </span>
+                    ) : (
+                      <span className="text-red-400">
+                        -{latestReveal.results[myPlayer.id].damageTaken} HP
+                      </span>
+                    )}
+                  </div>
+                )}
                 {currentQuestion?.explanation && (
                   <p className="text-slate-400 text-sm leading-relaxed">{currentQuestion.explanation}</p>
                 )}
@@ -236,7 +301,7 @@ export default function MultiplayerBattlePage() {
         </div>
 
         {/* Winner Podium Modal */}
-        <Modal open={showEnd}>
+        <Modal open={showEnd && !!rankings}>
           <div className="text-center">
             <div className="text-5xl mb-4">🏆</div>
             <h2 className="font-orbitron font-black text-2xl text-neon-amber mb-6">BATTLE COMPLETE!</h2>
@@ -246,24 +311,30 @@ export default function MultiplayerBattlePage() {
               {rankings?.slice(0, 5).map((r, i) => {
                 const hero = HEROES.find(h => h.id === r.heroClass) || HEROES[0];
                 const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+                const isMe = r.playerId === localSocketId;
                 return (
                   <motion.div
-                    key={r.displayName}
+                    key={r.playerId}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.1 }}
-                    className="flex items-center justify-between px-4 py-3 rounded-lg border border-white/10 bg-dark-900"
+                    className={`flex items-center justify-between px-4 py-3 rounded-lg border ${isMe ? 'border-neon-cyan/40 bg-neon-cyan/5' : 'border-white/10 bg-dark-900'}`}
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-xl">{medals[i]}</span>
                       <div className="text-left">
-                        <div className="font-orbitron text-sm text-white">{r.displayName}</div>
+                        <div className="font-orbitron text-sm" style={{ color: isMe ? '#00d4ff' : 'white' }}>
+                          {r.displayName}{isMe ? ' (you)' : ''}
+                          {r.eliminated && <span className="ml-2 text-red-500 text-xs">✗</span>}
+                        </div>
                         <div className="text-slate-600 text-xs font-mono">{hero.name}</div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-orbitron text-sm text-neon-green">{r.finalScore.toLocaleString()}</div>
-                      <div className="text-slate-600 text-xs font-mono">{r.maxStreak} max streak</div>
+                      <div className="text-slate-600 text-xs font-mono">
+                        {r.questionsCorrect ?? 0} correct · {r.maxStreak}x streak
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -277,6 +348,34 @@ export default function MultiplayerBattlePage() {
           </div>
         </Modal>
       </div>
+
+      {/* Reconnect overlay */}
+      <AnimatePresence>
+        {isReconnecting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-dark-900/80 backdrop-blur-sm flex items-center justify-center"
+          >
+            <div className="neon-border-cyan bg-dark-800 rounded-2xl p-8 text-center max-w-sm mx-4">
+              {reconnectAttempt >= 0 ? (
+                <>
+                  <div className="spinner w-10 h-10 mx-auto mb-4" />
+                  <div className="font-orbitron text-neon-cyan text-sm mb-1">RECONNECTING...</div>
+                  <div className="font-mono text-slate-500 text-xs">Attempt {reconnectAttempt + 1} of 3</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-4xl mb-4">⚠️</div>
+                  <div className="font-orbitron text-red-400 text-sm mb-4">CONNECTION LOST</div>
+                  <Button onClick={() => navigate('/multiplayer')} variant="ghost" className="w-full">← LEAVE BATTLE</Button>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageWrapper>
   );
 }

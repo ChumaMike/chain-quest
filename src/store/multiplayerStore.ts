@@ -15,6 +15,9 @@ interface MultiplayerStore {
   bossDefeated: boolean;
   countdownValue: number | null;
   answeredThisRound: boolean;
+  roomError: string | null;
+  isReconnecting: boolean;
+  reconnectAttempt: number;
 
   setRoom: (room: Room) => void;
   setSocketId: (id: string) => void;
@@ -27,6 +30,8 @@ interface MultiplayerStore {
   setCountdown: (value: number | null) => void;
   setAnswered: (answered: boolean) => void;
   setTimeRemaining: (time: number) => void;
+  setRoomError: (error: string | null) => void;
+  setReconnecting: (reconnecting: boolean, attempt: number) => void;
   reset: () => void;
 }
 
@@ -64,6 +69,9 @@ export const useMultiplayerStore = create<MultiplayerStore>((set) => ({
   bossDefeated: false,
   countdownValue: null,
   answeredThisRound: false,
+  roomError: null,
+  isReconnecting: false,
+  reconnectAttempt: 0,
 
   setRoom: (room) => set({ room }),
   setSocketId: (id) => set({ localSocketId: id }),
@@ -93,9 +101,13 @@ export const useMultiplayerStore = create<MultiplayerStore>((set) => ({
 
   setTimeRemaining: (time) => set({ timeRemaining: time }),
 
+  setRoomError: (error) => set({ roomError: error }),
+
+  setReconnecting: (reconnecting, attempt) => set({ isReconnecting: reconnecting, reconnectAttempt: attempt }),
+
   reset: () => set({
     room: null, currentQuestion: null, questionIndex: 0, totalQuestions: 10,
     timeRemaining: 30, bossHP: 200, bossMaxHP: 200, latestReveal: null,
-    rankings: null, bossDefeated: false, countdownValue: null, answeredThisRound: false,
+    rankings: null, bossDefeated: false, countdownValue: null, answeredThisRound: false, roomError: null,
   }),
 }));

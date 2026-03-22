@@ -47,6 +47,17 @@ export default function BattlePage() {
         const hc = data.profile?.hero_class || 'validator';
         setHeroClass(hc);
         setProfile(data.profile);
+        // Sync inventory effects to store
+        try {
+          const inv = data.profile?.inventory ? JSON.parse(data.profile.inventory) : [];
+          const hasXPBoost = inv.some((i: any) => i.id === 'xp_boost' && i.quantity > 0);
+          const hintScrolls = inv.filter((i: any) => i.id === 'hint_scroll').reduce((s: number, i: any) => s + (i.quantity || 1), 0);
+          useGameStore.getState().setXPBoost(hasXPBoost);
+          if (hintScrolls > 0 && hc !== 'archivist') {
+            // Non-archivists can also use hints if they have scrolls
+            useGameStore.setState({ hintsRemaining: hintScrolls });
+          }
+        } catch {}
         startBattle(wId, hc, 'solo');
         (useGameStore.getState().battle as any)._heroClass = hc;
       });
@@ -69,6 +80,11 @@ export default function BattlePage() {
     if (result.correct) {
       addPopup(`-${result.damageDealt}`, '#00ff88');
       addPopup(`+${result.scoreGained}pts`, '#00d4ff');
+      // Speed demon: answered correctly with 3+ seconds remaining on a 30s question
+      const q = battle.currentQuestion;
+      if (q && battle.timeRemaining >= (q.timeLimitSec - 3)) {
+        useGameStore.getState().unlockAchievement('speed_demon');
+      }
     } else {
       addPopup(`-${result.damageTaken} HP`, '#ff2244');
       setIsShaking(true);
@@ -292,8 +308,8 @@ export default function BattlePage() {
                 })}
               </div>
 
-              {/* Hint button (Archivist) */}
-              {heroClass === 'archivist' && battle.phase === 'question' && (
+              {/* Hint button */}
+              {battle.phase === 'question' && useGameStore.getState().hintsRemaining > 0 && (
                 <button onClick={handleHint} disabled={useGameStore.getState().hintsRemaining === 0} className="mt-3 w-full sm:w-auto text-xs font-orbitron text-neon-amber border border-neon-amber/30 px-3 py-2 rounded hover:bg-neon-amber/10 disabled:opacity-30 transition-all">
                   💡 HINT ({useGameStore.getState().hintsRemaining} left)
                 </button>

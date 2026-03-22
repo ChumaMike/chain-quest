@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ZONE_CONFIGS, HUB_CONFIG, WORLD_SIZE, type ZoneConfig } from '../../data/worldZones';
+import { ZONE_CONFIGS, HUB_CONFIG, WORLD_SIZE, MINI_GAME_PORTALS, type ZoneConfig } from '../../data/worldZones';
 import { WORLDS } from '../../data/curriculum';
 
 const WORLD_COLORS = [0, 0x00d4ff, 0xffb800, 0x8b5cf6, 0x00ff88, 0xff0080, 0x0066ff, 0xff6b35];
@@ -40,6 +40,7 @@ export default class OpenWorldScene extends Phaser.Scene {
   private chatBubbles: Map<string, { text: Phaser.GameObjects.Text; bg: Phaser.GameObjects.Rectangle; ttl: number }> = new Map();
   private myBubble?: { text: Phaser.GameObjects.Text; bg: Phaser.GameObjects.Rectangle; ttl: number };
   private studyNPCs: Array<{ container: Phaser.GameObjects.Container; worldId: number; talkCooldown: number }> = [];
+  private miniGamePortalData: Array<{ x: number; y: number; radius: number; sceneKey: string }> = [];
 
   // Event bus for React communication
   public static events = new Phaser.Events.EventEmitter();
@@ -74,6 +75,7 @@ export default class OpenWorldScene extends Phaser.Scene {
     this.createStudyNPCs();
     this.createZoneParticles();
     this.createBossZones();
+    this.createMiniGamePortals();
     this.setupCamera();
     this.setupControls();
     this.setupMinimap();
@@ -317,6 +319,59 @@ export default class OpenWorldScene extends Phaser.Scene {
       (portal as any).worldId = zone.worldId;
       (portal as any).zoneX = x;
       (portal as any).zoneY = y;
+    }
+  }
+
+  createMiniGamePortals() {
+    for (const p of MINI_GAME_PORTALS) {
+      // Outer ring
+      const portal = this.add.arc(p.x, p.y, p.radius, 0, 360, false, p.color, 0.1);
+      portal.setStrokeStyle(3, p.color, 0.8);
+
+      // Pulsing inner ring
+      const inner = this.add.arc(p.x, p.y, p.radius * 0.55, 0, 360, false, p.color, 0.25);
+      this.tweens.add({
+        targets: inner,
+        scaleX: { from: 0.8, to: 1.25 },
+        scaleY: { from: 0.8, to: 1.25 },
+        alpha: { from: 0.25, to: 0.04 },
+        duration: 1800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+        delay: MINI_GAME_PORTALS.indexOf(p) * 400,
+      });
+
+      // Label
+      this.add.text(p.x, p.y - p.radius - 14, p.label, {
+        fontFamily: 'Orbitron', fontSize: '7px',
+        color: `#${p.color.toString(16).padStart(6, '0')}`,
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5);
+
+      // "MINI-GAME" sub-label
+      this.add.text(p.x, p.y - p.radius - 4, 'MINI-GAME', {
+        fontFamily: 'Share Tech Mono', fontSize: '6px', color: '#ffffff44',
+      }).setOrigin(0.5);
+
+      this.miniGamePortalData.push({ x: p.x, y: p.y, radius: p.radius, sceneKey: p.sceneKey });
+    }
+  }
+
+  checkMiniGamePortals() {
+    if (this.battleTriggerCooldown > 0) return;
+    const px = this.player.x;
+    const py = this.player.y;
+    for (const portal of this.miniGamePortalData) {
+      const dx = px - portal.x;
+      const dy = py - portal.y;
+      if (Math.sqrt(dx * dx + dy * dy) < portal.radius * 0.8) {
+        this.battleTriggerCooldown = 5000;
+        this.cameras.main.flash(200, 139, 92, 246);
+        this.scene.launch(portal.sceneKey, { playerData: this.playerData });
+        this.scene.pause();
+        return;
+      }
     }
   }
 
@@ -567,6 +622,7 @@ export default class OpenWorldScene extends Phaser.Scene {
   update(time: number, delta: number) {
     this.movePlayer(delta);
     this.interpolateRemotePlayers(delta);
+    this.checkMiniGamePortals();
     this.checkBattleTriggers();
     this.checkStudyNPCProximity(delta);
     this.updateMinimap();

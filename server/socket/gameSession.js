@@ -17,19 +17,27 @@ class GameSession {
     this.worldId = room.worldId;
     this.questions = this.loadQuestions();
     this.currentQuestionIndex = 0;
-    this.phase = 'countdown'; // countdown | question | reveal | boss_attack | ended
+    this.phase = 'countdown'; // countdown | question | reveal | ended
     this.answerMap = new Map(); // socketId → { answerIndex, timestamp }
-    this.timerHandle = null;
+    this.timerHandle = null;      // auto-resolve timeout
+    this.revealTimerHandle = null; // advance-to-next-question timeout
+    this.timerInterval = null;    // per-second tick interval
     this.questionStartTime = 0;
     this.sharedBossHP = this.getBossHP();
     this.sharedBossMaxHP = this.sharedBossHP;
+    this.destroyed = false;
   }
 
   loadQuestions() {
     const world = WORLDS_DATA.find(w => w.id === this.worldId);
     if (!world) return [];
-    // Shuffle questions
-    return [...world.questions].sort(() => Math.random() - 0.5);
+    // Fisher-Yates shuffle
+    const arr = world.questions.map(q => ({ ...q })); // shallow clone each question
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
   }
 
   getBossHP() {
@@ -38,10 +46,12 @@ class GameSession {
   }
 
   start() {
+    if (this.destroyed) return;
     this.room.phase = 'countdown';
     // 3-2-1 countdown
     let count = 3;
     const countInterval = setInterval(() => {
+      if (this.destroyed) { clearInterval(countInterval); return; }
       this.io.to(this.code).emit('battle:countdown', { count });
       count--;
       if (count < 0) {
@@ -52,6 +62,7 @@ class GameSession {
   }
 
   sendNextQuestion() {
+    if (this.destroyed) return;
     if (this.currentQuestionIndex >= this.questions.length) {
       this.endGame();
       return;
@@ -61,13 +72,14 @@ class GameSession {
     this.phase = 'question';
     this.answerMap.clear();
 
-    // Reset hasAnswered for all players
+    // Reset hasAnswered for all non-eliminated players
     for (const player of this.room.players) {
       player.hasAnswered = false;
     }
 
     const q = this.questions[this.currentQuestionIndex];
     this.questionStartTime = Date.now();
+    const timeLimit = (q.timeLimitSec || 30) * 1000;
 
     // Send question WITHOUT correct answer
     this.io.to(this.code).emit('battle:question', {
@@ -85,17 +97,39 @@ class GameSession {
       bossMaxHP: this.sharedBossMaxHP,
     });
 
+    // Per-second timer tick so clients display smooth countdown
+    let ticksLeft = Math.ceil(timeLimit / 1000);
+    this.timerInterval = setInterval(() => {
+      if (this.destroyed || this.phase !== 'question') {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+        return;
+      }
+      ticksLeft--;
+      this.io.to(this.code).emit('battle:timer', { remaining: Math.max(0, ticksLeft) });
+      if (ticksLeft <= 0) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
+    }, 1000);
+
     // Auto-resolve when timer expires
-    const timeLimit = (q.timeLimitSec || 30) * 1000;
-    this.timerHandle = setTimeout(() => this.resolveQuestion(), timeLimit);
+    this.timerHandle = setTimeout(() => {
+      if (!this.destroyed) this.resolveQuestion();
+    }, timeLimit);
   }
 
   receiveAnswer(socketId, questionId, answerIndex) {
+    if (this.destroyed || this.phase !== 'question') return;
+
     const q = this.questions[this.currentQuestionIndex];
     if (!q || q.id !== questionId) return;
     if (this.answerMap.has(socketId)) return; // already answered
-    if (this.phase !== 'question') return;
 
+    // Validate answer index is in range
+    if (typeof answerIndex !== 'number' || answerIndex < 0 || answerIndex >= q.options.length) return;
+
+    // Validate player belongs to this session
     const player = this.room.players.find(p => p.id === socketId);
     if (!player || player.isEliminated) return;
 
@@ -109,19 +143,50 @@ class GameSession {
     // Notify others that someone answered (no content leaked)
     this.io.to(this.code).emit('battle:player-answered', { playerId: socketId });
 
-    // Check if all active players answered
+    // Check if all active (non-eliminated) players have answered
     const activePlayers = this.room.players.filter(p => !p.isEliminated);
     const allAnswered = activePlayers.every(p => this.answerMap.has(p.id));
     if (allAnswered) {
       clearTimeout(this.timerHandle);
+      clearInterval(this.timerInterval);
+      this.timerHandle = null;
+      this.timerInterval = null;
+      this.resolveQuestion();
+    }
+  }
+
+  // Called on disconnect to auto-forfeit a player's answer so the game doesn't hang
+  forfeitAnswer(socketId) {
+    if (this.destroyed || this.phase !== 'question') return;
+    const player = this.room.players.find(p => p.id === socketId);
+    if (!player || player.isEliminated || this.answerMap.has(socketId)) return;
+
+    // Record as unanswered (answerIndex -1 = no answer = damage taken)
+    this.answerMap.set(socketId, { answerIndex: -1, timestamp: Date.now() });
+    player.hasAnswered = true;
+
+    // Check if all active players have now answered (including the forfeited one)
+    const activePlayers = this.room.players.filter(p => !p.isEliminated);
+    const allAnswered = activePlayers.every(p => this.answerMap.has(p.id));
+    if (allAnswered) {
+      clearTimeout(this.timerHandle);
+      clearInterval(this.timerInterval);
+      this.timerHandle = null;
+      this.timerInterval = null;
       this.resolveQuestion();
     }
   }
 
   resolveQuestion() {
-    if (this.phase !== 'question') return;
+    if (this.destroyed || this.phase !== 'question') return;
     this.phase = 'reveal';
     this.room.phase = 'reveal';
+
+    // Clear any pending timer/interval
+    clearTimeout(this.timerHandle);
+    clearInterval(this.timerInterval);
+    this.timerHandle = null;
+    this.timerInterval = null;
 
     const q = this.questions[this.currentQuestionIndex];
     const results = {};
@@ -143,11 +208,11 @@ class GameSession {
       const heroStats = HERO_STATS[player.heroClass] || HERO_STATS.validator;
       const baseDamage = { easy: 20, medium: 30, hard: 40, boss: 50 }[q.difficulty] || 25;
 
-      if (!answer) {
+      if (!answer || answer.answerIndex === -1) {
         // Didn't answer — take damage
         const dmgTaken = Math.round(baseDamage * 0.5 * (1 - heroStats.defense));
         player.currentHP = Math.max(0, player.currentHP - dmgTaken);
-        results[player.id] = { answerIndex: -1, correct: false, wasFirst: false, firstBonus: 0, damageDealt: 0, damageTaken: dmgTaken, newScore: player.score, newHP: player.currentHP, newStreak: 0, xpGained: 0 };
+        results[player.id] = { answerIndex: -1, correct: false, wasFirst: false, firstBonus: 0, damageDealt: 0, damageTaken: dmgTaken, newScore: player.score, newHP: player.currentHP, newStreak: 0, newMultiplier: 1, xpGained: 0 };
         player.streak = 0;
         player.multiplier = 1;
       } else if (answer.answerIndex === q.correctIndex) {
@@ -161,6 +226,7 @@ class GameSession {
         this.sharedBossHP = Math.max(0, this.sharedBossHP - dmgDealt);
         player.score += scoreGain;
         player.streak++;
+        player.questionsCorrect = (player.questionsCorrect || 0) + 1;
         player.multiplier = player.streak >= 4 ? 3 : player.streak >= 3 ? 2 : player.streak >= 2 ? 1.5 : 1;
 
         const xp = Math.round(baseDamage * streakMult * ({ easy: 1, medium: 1.5, hard: 2, boss: 2 }[q.difficulty] || 1));
@@ -178,8 +244,12 @@ class GameSession {
       // Check elimination
       if (player.currentHP <= 0 && !player.isEliminated) {
         player.isEliminated = true;
+        const eliminatedId = player.id;
+        const finalScore = player.score;
         setTimeout(() => {
-          this.io.to(this.code).emit('battle:eliminated', { playerId: player.id, finalScore: player.score });
+          if (!this.destroyed) {
+            this.io.to(this.code).emit('battle:eliminated', { playerId: eliminatedId, finalScore });
+          }
         }, 1500);
       }
     }
@@ -195,7 +265,8 @@ class GameSession {
     this.currentQuestionIndex++;
 
     // Advance after 4 seconds (time to read explanation)
-    setTimeout(() => {
+    this.revealTimerHandle = setTimeout(() => {
+      if (this.destroyed) return;
       const activePlayers = this.room.players.filter(p => !p.isEliminated);
       if (activePlayers.length === 0 || this.currentQuestionIndex >= this.questions.length) {
         this.endGame();
@@ -206,10 +277,11 @@ class GameSession {
   }
 
   endGame() {
+    if (this.destroyed) return;
     this.phase = 'ended';
     this.room.phase = 'ended';
 
-    const rankings = this.room.players
+    const rankings = [...this.room.players]
       .sort((a, b) => b.score - a.score)
       .map((p, i) => ({
         rank: i + 1,
@@ -217,7 +289,7 @@ class GameSession {
         displayName: p.displayName,
         heroClass: p.heroClass,
         finalScore: p.score,
-        questionsCorrect: 0,
+        questionsCorrect: p.questionsCorrect || 0,
         maxStreak: p.streak,
         eliminated: p.isEliminated,
       }));
@@ -232,7 +304,14 @@ class GameSession {
   }
 
   destroy() {
+    if (this.destroyed) return; // guard against double-destroy
+    this.destroyed = true;
     clearTimeout(this.timerHandle);
+    clearTimeout(this.revealTimerHandle);
+    clearInterval(this.timerInterval);
+    this.timerHandle = null;
+    this.revealTimerHandle = null;
+    this.timerInterval = null;
   }
 }
 

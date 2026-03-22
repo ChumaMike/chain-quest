@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
+import { ACHIEVEMENTS } from '../../data/achievements';
 import { useWeb3 } from '../../hooks/useWeb3';
 import { WORLDS } from '../../data/curriculum';
 import { HEROES } from '../../data/heroes';
@@ -22,7 +23,7 @@ const SHOP_ITEMS = [
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { user, token, logout } = useAuthStore();
-  const { totalXP, currentLevel, completedWorlds } = useGameStore();
+  const { totalXP, currentLevel, completedWorlds, unlockedAchievements } = useGameStore();
   const { walletAddress, cqtBalance, connectWallet, refreshBalance, claimReward } = useWeb3();
 
   const [profile, setProfile] = useState<any>(null);
@@ -185,6 +186,24 @@ export default function ProfilePage() {
                             <span className="text-slate-700 text-xs font-mono">—</span>
                           )}
                         </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Achievements */}
+              <div className="neon-border-amber bg-dark-800 rounded-xl p-5">
+                <h2 className="font-orbitron text-sm text-neon-amber mb-1">ACHIEVEMENTS</h2>
+                <div className="text-slate-600 text-xs font-mono mb-3">{unlockedAchievements.length}/{ACHIEVEMENTS.length} unlocked</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {ACHIEVEMENTS.map(a => {
+                    const earned = unlockedAchievements.includes(a.id);
+                    return (
+                      <div key={a.id} className={`rounded-lg p-2 border transition-all ${earned ? 'border-neon-amber/40 bg-neon-amber/5' : 'border-white/5 bg-dark-900 opacity-40'}`}>
+                        <div className="text-xl mb-1">{a.emoji}</div>
+                        <div className={`font-orbitron text-xs ${earned ? 'text-neon-amber' : 'text-slate-600'}`}>{a.name}</div>
+                        <div className="text-slate-600 text-xs mt-0.5 leading-tight">{a.description}</div>
                       </div>
                     );
                   })}

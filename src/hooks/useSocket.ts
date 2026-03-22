@@ -34,9 +34,22 @@ export function useSocket() {
 
     socket.on('disconnect', (reason) => {
       console.warn('[Socket] Disconnected:', reason);
+      useMultiplayerStore.getState().setReconnecting(true, 0);
       if (reason === 'io server disconnect') {
         socket.connect();
       }
+    });
+
+    socket.on('reconnect_attempt', (attempt: number) => {
+      useMultiplayerStore.getState().setReconnecting(true, attempt);
+    });
+
+    socket.on('reconnect', () => {
+      useMultiplayerStore.getState().setReconnecting(false, 0);
+    });
+
+    socket.on('reconnect_failed', () => {
+      useMultiplayerStore.getState().setReconnecting(false, -1); // -1 = failed
     });
 
     socket.on('connect_error', (err) => {
@@ -45,26 +58,29 @@ export function useSocket() {
 
     socket.on('room:created', ({ room }) => {
       store.setRoom(room);
+      store.setRoomError(null);
     });
 
     socket.on('room:joined', ({ room }) => {
       store.setRoom(room);
+      store.setRoomError(null);
     });
 
     socket.on('room:updated', ({ room }) => {
       store.updateRoom(room);
     });
 
-    socket.on('room:error', ({ message }) => {
+    socket.on('room:error', ({ message }: { message: string }) => {
       console.warn('[Socket] Room error:', message);
+      store.setRoomError(message);
     });
 
     socket.on('battle:countdown', ({ count }: { count: number }) => {
       store.setCountdown(count);
     });
 
-    socket.on('battle:start', ({ players, bossMaxHP }: { worldId: number; players: any[]; bossMaxHP: number }) => {
-      store.startBattle({ worldId: store.room?.worldId || 1, players, bossMaxHP });
+    socket.on('battle:start', ({ worldId, players, bossMaxHP }: { worldId: number; players: any[]; bossMaxHP: number }) => {
+      store.startBattle({ worldId: worldId || store.room?.worldId || 1, players, bossMaxHP });
       store.setCountdown(null);
     });
 

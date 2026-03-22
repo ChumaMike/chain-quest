@@ -186,6 +186,7 @@ export interface PlayerRanking {
   finalScore: number;
   maxStreak: number;
   eliminated: boolean;
+  questionsCorrect?: number;
 }
 
 // ─── Open World ───────────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ export default function OpenWorldPage() {
   const [zoneCard, setZoneCard] = useState<{ zone: string; worldId: number } | null>(null);
   const [npcTip, setNpcTip] = useState<string | null>(null);
   const [bossClearToast, setBossClearToast] = useState<string | null>(null);
+  const [lockedMsg, setLockedMsg] = useState<string | null>(null);
   const chatMsgId = useRef(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
@@ -105,9 +106,15 @@ export default function OpenWorldPage() {
   }, [socket]);
 
   const handleBattleTrigger = useCallback((worldId: number, isBoss: boolean) => {
+    const world = WORLDS.find(w => w.id === worldId);
+    if (world && world.unlockLevel > currentLevel) {
+      setLockedMsg(`World ${worldId} requires Level ${world.unlockLevel} (you are Level ${currentLevel})`);
+      setTimeout(() => setLockedMsg(null), 3500);
+      return;
+    }
     setBattlePrompt({ worldId, isBoss });
     setTimeout(() => setBattlePrompt(null), 5000);
-  }, []);
+  }, [currentLevel]);
 
   const enterBattle = () => {
     if (battlePrompt) navigate(`/battle/${battlePrompt.worldId}`);
@@ -395,6 +402,23 @@ export default function OpenWorldPage() {
           >
             <div className="bg-dark-900/95 backdrop-blur-sm rounded-xl border border-yellow-500/40 px-6 py-3 text-center">
               <div className="font-orbitron text-xs text-yellow-400">{bossClearToast}</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Locked world notification */}
+      <AnimatePresence>
+        {lockedMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20"
+          >
+            <div className="bg-dark-900/95 backdrop-blur-sm rounded-xl border border-red-500/40 px-6 py-3 text-center">
+              <div className="text-2xl mb-1">🔒</div>
+              <div className="font-orbitron text-xs text-red-400">{lockedMsg}</div>
             </div>
           </motion.div>
         )}
