@@ -30,6 +30,11 @@ export function useSocket() {
 
     socket.on('connect', () => {
       store.setSocketId(socket.id || '');
+      // Rejoin active battle room on reconnect
+      const { room } = useMultiplayerStore.getState();
+      if (room?.code && room.phase === 'battle') {
+        socket.emit('battle:rejoin', { code: room.code });
+      }
     });
 
     socket.on('disconnect', (reason) => {
@@ -140,6 +145,21 @@ export function useSocket() {
       store.setRankings(rankings, bossDefeated);
     });
 
+    socket.on('battle:chat', (data: { displayName: string; heroClass: string; message: string }) => {
+      useMultiplayerStore.getState().addBattleMessage(data);
+    });
+
+    socket.on('battle:rewards', (rewards: Record<string, { xp: number; cqt: number }>) => {
+      useMultiplayerStore.getState().setBattleRewards(rewards);
+    });
+
+    socket.on('battle:state-sync', (data: any) => {
+      const store = useMultiplayerStore.getState();
+      store.setReconnecting(false, 0);
+      if (data.currentQuestion) store.setQuestion({ question: data.currentQuestion, index: data.questionIndex, total: data.totalQuestions || 10, bossHP: data.bossHP, bossMaxHP: data.bossMaxHP });
+      if (data.timeRemaining !== undefined) store.setTimeRemaining(data.timeRemaining);
+    });
+
     return () => {
       // Don't disconnect on component unmount — socket is singleton
     };
@@ -168,6 +188,9 @@ export function useSocket() {
     submitAnswer: (code: string, questionId: string, answerIndex: number, timeRemaining: number) => {
       socket.emit('battle:answer', { code, questionId, answerIndex, timeRemaining });
       useMultiplayerStore.getState().setAnswered(true);
+    },
+    sendBattleChat: (code: string, message: string) => {
+      socket.emit('battle:chat', { code, message });
     },
     joinWorld: (playerData: any) => {
       socket.emit('world:join', playerData);

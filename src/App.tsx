@@ -12,6 +12,7 @@ import MultiplayerBattlePage from './components/pages/MultiplayerBattlePage';
 import LeaderboardPage from './components/pages/LeaderboardPage';
 import ProfilePage from './components/pages/ProfilePage';
 import Navbar from './components/ui/Navbar';
+import AchievementToast from './components/ui/AchievementToast';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
@@ -41,6 +42,7 @@ export default function App() {
           </Routes>
         </AnimatePresence>
       </ErrorBoundary>
+      <AchievementToast />
     </div>
   );
 }

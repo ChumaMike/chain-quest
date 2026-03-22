@@ -18,6 +18,8 @@ interface MultiplayerStore {
   roomError: string | null;
   isReconnecting: boolean;
   reconnectAttempt: number;
+  battleMessages: { id: number; displayName: string; heroClass: string; message: string }[];
+  battleRewards: Record<string, { xp: number; cqt: number }> | null;
 
   setRoom: (room: Room) => void;
   setSocketId: (id: string) => void;
@@ -32,6 +34,8 @@ interface MultiplayerStore {
   setTimeRemaining: (time: number) => void;
   setRoomError: (error: string | null) => void;
   setReconnecting: (reconnecting: boolean, attempt: number) => void;
+  addBattleMessage: (msg: { displayName: string; heroClass: string; message: string }) => void;
+  setBattleRewards: (rewards: Record<string, { xp: number; cqt: number }>) => void;
   reset: () => void;
 }
 
@@ -72,6 +76,8 @@ export const useMultiplayerStore = create<MultiplayerStore>((set) => ({
   roomError: null,
   isReconnecting: false,
   reconnectAttempt: 0,
+  battleMessages: [],
+  battleRewards: null,
 
   setRoom: (room) => set({ room }),
   setSocketId: (id) => set({ localSocketId: id }),
@@ -105,9 +111,15 @@ export const useMultiplayerStore = create<MultiplayerStore>((set) => ({
 
   setReconnecting: (reconnecting, attempt) => set({ isReconnecting: reconnecting, reconnectAttempt: attempt }),
 
+  addBattleMessage: (msg) => set((state) => ({
+    battleMessages: [...state.battleMessages.slice(-49), { ...msg, id: Date.now() }],
+  })),
+  setBattleRewards: (rewards) => set({ battleRewards: rewards }),
+
   reset: () => set({
     room: null, currentQuestion: null, questionIndex: 0, totalQuestions: 10,
     timeRemaining: 30, bossHP: 200, bossMaxHP: 200, latestReveal: null,
     rankings: null, bossDefeated: false, countdownValue: null, answeredThisRound: false, roomError: null,
+    battleMessages: [], battleRewards: null,
   }),
 }));

@@ -91,10 +91,13 @@ export default function MultiplayerLobbyPage() {
                 <span className="text-slate-500 text-sm font-mono">ROOM CODE:</span>
                 <span className="font-orbitron text-2xl text-neon-cyan glow-cyan tracking-widest">{room.code}</span>
                 <button
-                  onClick={() => navigator.clipboard.writeText(room.code)}
+                  onClick={() => {
+                    const url = `${window.location.origin}/multiplayer?join=${room.code}`;
+                    navigator.clipboard.writeText(url).catch(() => navigator.clipboard.writeText(room.code));
+                  }}
                   className="text-xs font-mono text-slate-600 border border-white/10 px-2 py-1 rounded hover:text-white transition-colors"
                 >
-                  COPY
+                  COPY LINK
                 </button>
               </div>
             </div>
@@ -141,7 +144,7 @@ export default function MultiplayerLobbyPage() {
                         <div className="font-orbitron text-xs truncate" style={{ color: isMe ? '#00d4ff' : '#e2e8f0' }}>
                           {p.displayName} {isMe && '(you)'}
                         </div>
-                        <div className="text-slate-600 text-xs font-mono">{hero.name}</div>
+                        <div className="text-slate-600 text-xs font-mono">{hero.name} · {hero.baseHP}HP</div>
                       </div>
                       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${p.isReady ? 'bg-neon-green' : 'bg-slate-700'}`} />
                     </motion.div>
@@ -257,6 +260,32 @@ export default function MultiplayerLobbyPage() {
                 </div>
 
                 <div>
+                  <label className="font-orbitron text-xs text-slate-400 mb-2 block">HERO CLASS</label>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {HEROES.map(h => (
+                      <button
+                        key={h.id}
+                        onClick={() => setHeroClass(h.id)}
+                        className={`text-left p-3 rounded-lg border transition-all ${heroClass === h.id ? 'border-neon-cyan/50 bg-neon-cyan/5' : 'border-white/10 bg-dark-900 hover:border-white/20'}`}
+                      >
+                        <div className="text-lg mb-0.5">{h.emoji}</div>
+                        <div className="font-orbitron text-xs font-bold" style={{ color: h.color }}>{h.name}</div>
+                        <div className="text-slate-600 text-xs font-mono">{h.baseHP} HP · {h.attackMultiplier}× ATK</div>
+                      </button>
+                    ))}
+                  </div>
+                  {(() => {
+                    const h = HEROES.find(hh => hh.id === heroClass);
+                    if (!h) return null;
+                    return (
+                      <div className="p-3 rounded-lg bg-dark-900 border border-white/5 text-xs font-mono text-slate-400">
+                        <span className="text-neon-purple font-orbitron">PASSIVE:</span> {h.passiveDescription}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div>
                   <label className="font-orbitron text-xs text-slate-400 mb-2 block">SELECT WORLD</label>
                   <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                     {WORLDS.map(w => (
@@ -271,6 +300,23 @@ export default function MultiplayerLobbyPage() {
                       </button>
                     ))}
                   </div>
+                  {(() => {
+                    const w = WORLDS.find(ww => ww.id === selectedWorld);
+                    if (!w) return null;
+                    return (
+                      <div className="p-3 rounded-lg bg-dark-900 border border-white/10 flex items-center gap-3">
+                        <div className="text-2xl">{w.boss.emoji}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-orbitron text-xs font-bold" style={{ color: w.color }}>{w.boss.name}</div>
+                          <div className="text-slate-600 text-xs font-mono">{w.boss.maxHP} HP · {w.questions.length} Questions</div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="font-orbitron text-xs text-neon-amber">{w.cqtReward} CQT</div>
+                          <div className="text-slate-700 text-xs">REWARD</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {localError && (

@@ -126,6 +126,7 @@ function initSocketHandlers(io) {
         socket.emit('room:error', { message: 'Display name is required.' });
         return;
       }
+      socket.data.displayName = cleanName;
       const room = roomManager.createRoom(socket.id, wid, cleanName, heroClass);
       socket.join(room.code);
       socket.emit('room:created', { code: room.code, room });
@@ -143,6 +144,7 @@ function initSocketHandlers(io) {
         socket.emit('room:error', { message: 'Display name is required.' });
         return;
       }
+      socket.data.displayName = cleanName;
       const result = roomManager.joinRoom(code.toUpperCase(), socket.id, cleanName, heroClass);
       if (result.error) {
         socket.emit('room:error', { message: result.error, code: result.code });
@@ -216,6 +218,41 @@ function initSocketHandlers(io) {
         return;
       }
       session.receiveAnswer(socket.id, questionId, answerIndex);
+    });
+
+    socket.on('battle:chat', ({ code, message }) => {
+      if (typeof code !== 'string') return;
+      const session = activeSessions.get(code);
+      if (!session) return;
+      session.receiveChat(socket.id, message);
+    });
+
+    socket.on('battle:rejoin', ({ code }) => {
+      if (typeof code !== 'string' || code.length !== 6) return;
+      const room = roomManager.getRoom(code);
+      const session = activeSessions.get(code);
+      if (!room || !session) return;
+      const player = room.players.find(p => p.displayName === socket.data.displayName);
+      if (!player) return;
+      // Update player's socket ID
+      player.id = socket.id;
+      socket.join(code);
+      // Send full state snapshot
+      const currentQ = session.questions[session.currentQuestionIndex];
+      socket.emit('battle:state-sync', {
+        phase: session.phase,
+        bossHP: session.sharedBossHP,
+        bossMaxHP: session.sharedBossMaxHP,
+        players: room.players,
+        questionIndex: session.currentQuestionIndex,
+        currentQuestion: session.phase === 'question' && currentQ ? {
+          id: currentQ.id,
+          text: currentQ.text,
+          options: currentQ.options,
+          difficulty: currentQ.difficulty,
+          timeLimitSec: currentQ.timeLimitSec || 30,
+        } : null,
+      });
     });
 
     // ─── DISCONNECT ────────────────────────────────────────────

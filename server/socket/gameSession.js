@@ -2,6 +2,14 @@
 
 const WORLDS_DATA = require('../../src/data/curriculumServer');
 
+let _db = null;
+function getDB() {
+  if (!_db) {
+    try { _db = require('../db').getDB(); } catch {}
+  }
+  return _db;
+}
+
 const HERO_STATS = {
   validator: { hp: 110, attack: 1.0, defense: 0.25 },
   miner: { hp: 80, attack: 1.5, defense: 0.10 },
@@ -26,6 +34,7 @@ class GameSession {
     this.sharedBossHP = this.getBossHP();
     this.sharedBossMaxHP = this.sharedBossHP;
     this.destroyed = false;
+    this.chatRateLimit = new Map(); // socketId → lastChatTime
   }
 
   loadQuestions() {
@@ -296,10 +305,51 @@ class GameSession {
 
     const bossDefeated = this.sharedBossHP <= 0;
 
+    // Award XP and CQT rewards
+    const CQT_REWARDS = [50, 30, 20, 10, 10, 10, 10, 10];
+    const rewards = {};
+    const db = getDB();
+    rankings.forEach((r, i) => {
+      const xpGained = Math.round(r.finalScore / 10);
+      const cqtGained = CQT_REWARDS[i] || 10;
+      rewards[r.playerId] = { xpGained, cqtGained, rank: r.rank };
+      // Persist to DB if user is authenticated
+      if (db) {
+        try {
+          const player = this.room.players.find(p => p.id === r.playerId);
+          if (player && player.userId) {
+            db.prepare('UPDATE users SET xp = xp + ?, cqt_balance = cqt_balance + ? WHERE id = ?')
+              .run(xpGained, cqtGained, player.userId);
+          }
+        } catch (e) { /* non-critical */ }
+      }
+    });
+
     this.io.to(this.code).emit('battle:end', {
       rankings,
       bossDefeated,
       worldId: this.worldId,
+      rewards,
+    });
+  }
+
+  receiveChat(socketId, message) {
+    if (this.destroyed) return;
+    const player = this.room.players.find(p => p.id === socketId);
+    if (!player) return;
+    // Rate limit: 1 message per 2 seconds
+    const now = Date.now();
+    const last = this.chatRateLimit.get(socketId) || 0;
+    if (now - last < 2000) return;
+    this.chatRateLimit.set(socketId, now);
+    const trimmed = String(message || '').trim().slice(0, 80).replace(/[<>]/g, '');
+    if (!trimmed) return;
+    this.io.to(this.code).emit('battle:chat', {
+      playerId: socketId,
+      displayName: player.displayName,
+      heroClass: player.heroClass,
+      message: trimmed,
+      ts: Date.now(),
     });
   }
 

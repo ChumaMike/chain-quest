@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../store/gameStore';
@@ -12,8 +12,23 @@ import PageWrapper from '../ui/PageWrapper';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 import { useWeb3 } from '../../hooks/useWeb3';
+import { playSound, initAudio } from '../../game/audio/SoundManager';
 
 interface DamagePopup { id: number; text: string; color: string; x: number; y: number }
+
+function getStreakMultiplierDisplay(streak: number, heroClass: string): number {
+  const isDegen = heroClass === 'degen';
+  if (isDegen) {
+    if (streak >= 3) return 3;
+    if (streak >= 2) return 2;
+    if (streak >= 1) return 1.5;
+    return 1;
+  }
+  if (streak >= 4) return 3;
+  if (streak >= 3) return 2;
+  if (streak >= 2) return 1.5;
+  return 1;
+}
 
 export default function BattlePage() {
   const { worldId } = useParams<{ worldId: string }>();
@@ -32,6 +47,11 @@ export default function BattlePage() {
   const [battlePhase, setBattlePhase] = useState<'intro' | 'fighting'>('intro');
   const [streakAnim, setStreakAnim] = useState(false);
   const { claimReward } = useWeb3();
+
+  const [passiveToast, setPassiveToast] = useState<string | null>(null);
+  const [bossEnraged, setBossEnraged] = useState(false);
+  const [battleInventory, setBattleInventory] = useState<{ id: string; qty: number }[]>([]);
+  const prevStreakRef = useRef(0);
 
   const wId = parseInt(worldId || '1');
   const world = WORLDS.find(w => w.id === wId);
@@ -59,6 +79,14 @@ export default function BattlePage() {
           }
         } catch {}
         startBattle(wId, hc, 'solo');
+        try {
+          const inv = data.profile?.inventory ? JSON.parse(data.profile.inventory) : [];
+          const items = ['hp_potion', 'time_freeze'].map(id => ({
+            id,
+            qty: inv.filter((i: any) => i.id === id).reduce((s: number, i: any) => s + (i.quantity || 1), 0),
+          })).filter(i => i.qty > 0);
+          setBattleInventory(items);
+        } catch {}
         (useGameStore.getState().battle as any)._heroClass = hc;
       });
     return () => resetBattle();
@@ -78,17 +106,50 @@ export default function BattlePage() {
     if (!result) return;
 
     if (result.correct) {
+      playSound('correct');
       addPopup(`-${result.damageDealt}`, '#00ff88');
       addPopup(`+${result.scoreGained}pts`, '#00d4ff');
-      // Speed demon: answered correctly with 3+ seconds remaining on a 30s question
+      // Speed demon achievement
       const q = battle.currentQuestion;
       if (q && battle.timeRemaining >= (q.timeLimitSec - 3)) {
         useGameStore.getState().unlockAchievement('speed_demon');
       }
+      // Passive toasts
+      const curHeroClass = (useGameStore.getState().battle as any)._heroClass || heroClass;
+      const newStreak = battle.streak + 1;
+      const prevMult = battle.multiplier;
+      const newMult = newStreak >= 4 ? 3 : newStreak >= 3 ? 2 : newStreak >= 2 ? 1.5 : 1;
+      if (newMult > prevMult) {
+        playSound('streakUp');
+        setPassiveToast(`🔥 STREAK ×${newMult}!`);
+        setTimeout(() => setPassiveToast(null), 1500);
+      }
+      if (curHeroClass === 'miner' && (q?.difficulty === 'hard' || q?.difficulty === 'boss')) {
+        playSound('hardFork');
+        setPassiveToast('⛏ HARD FORK: 2× DAMAGE!');
+        setTimeout(() => setPassiveToast(null), 1800);
+      }
     } else {
+      playSound('wrong');
       addPopup(`-${result.damageTaken} HP`, '#ff2244');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
+      // Validator shield passive toast
+      const curHeroClass = (useGameStore.getState().battle as any)._heroClass || heroClass;
+      if (curHeroClass === 'validator' && result.damageTaken === 0) {
+        playSound('shieldBlock');
+        setPassiveToast('🛡 SHIELD ABSORBED THE HIT!');
+        setTimeout(() => setPassiveToast(null), 1800);
+      }
+    }
+
+    // Boss enrage at 50%
+    const newBossHP = battle.bossHP - (result.damageDealt || 0);
+    if (!bossEnraged && newBossHP <= battle.bossMaxHP * 0.5 && newBossHP > 0) {
+      setBossEnraged(true);
+      playSound('bossEnrage');
+      setPassiveToast(`⚠ ${world?.boss.name} IS ENRAGED!`);
+      setTimeout(() => setPassiveToast(null), 2500);
     }
 
     setTimeout(() => {
@@ -102,7 +163,7 @@ export default function BattlePage() {
       }
       advanceQuestion();
     }, 2500);
-  }, [battle, submitAnswer, advanceQuestion]);
+  }, [battle, submitAnswer, advanceQuestion, bossEnraged, world, heroClass]);
 
   const finishWorld = (perfect: boolean) => {
     if (!user || !token) return;
@@ -117,6 +178,7 @@ export default function BattlePage() {
       socket.announceBossClear(wId, world.name, world.boss.name);
     }
     setShowVictory(true);
+    playSound('bossDefeat');
   };
 
   const handleHint = () => {
@@ -139,6 +201,12 @@ export default function BattlePage() {
   }, [battle.streak]);
 
   useCountdown(battle.phase === 'question', () => useGameStore.getState().tickTimer(), 1000);
+
+  useEffect(() => {
+    if (battle.phase === 'question' && battle.timeRemaining === 5) {
+      playSound('timerUrgent');
+    }
+  }, [battle.timeRemaining, battle.phase]);
 
   if (!world || battle.phase === 'idle') {
     return (
@@ -192,7 +260,7 @@ export default function BattlePage() {
                 </div>
               </div>
 
-              <Button onClick={() => setBattlePhase('fighting')} variant="neon" className="w-full text-base">
+              <Button onClick={() => { initAudio(); setBattlePhase('fighting'); }} variant="neon" className="w-full text-base">
                 ⚔ CHALLENGE ACCEPTED
               </Button>
             </div>
@@ -220,7 +288,7 @@ export default function BattlePage() {
 
           {/* Boss display */}
           <div className="text-center mb-4 relative">
-            <div className={`text-5xl sm:text-7xl boss-float mb-2`}>{world.boss.emoji}</div>
+            <div className={`text-5xl sm:text-7xl boss-float mb-2 ${bossEnraged ? 'boss-enrage' : ''}`}>{world.boss.emoji}</div>
             <div className="font-orbitron font-bold text-sm mb-2" style={{ color: world.color }}>{world.boss.name}</div>
             <div className="max-w-xs mx-auto">
               <ProgressBar value={battle.bossHP} max={battle.bossMaxHP} color={world.color} height={10} showText label="BOSS HP" />
@@ -253,6 +321,20 @@ export default function BattlePage() {
               </div>
             </div>
           </div>
+
+          {/* Passive ability toast */}
+          <AnimatePresence>
+            {passiveToast && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-3 px-4 py-2 rounded-lg border border-neon-amber/50 bg-neon-amber/10 text-center"
+              >
+                <span className="font-orbitron text-sm text-neon-amber">{passiveToast}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Timer bar */}
           <div className="mb-4">
@@ -313,6 +395,42 @@ export default function BattlePage() {
                 <button onClick={handleHint} disabled={useGameStore.getState().hintsRemaining === 0} className="mt-3 w-full sm:w-auto text-xs font-orbitron text-neon-amber border border-neon-amber/30 px-3 py-2 rounded hover:bg-neon-amber/10 disabled:opacity-30 transition-all">
                   💡 HINT ({useGameStore.getState().hintsRemaining} left)
                 </button>
+              )}
+
+              {/* Item hotbar */}
+              {battleInventory.length > 0 && battle.phase === 'question' && (
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  {battleInventory.map(item => {
+                    const defs: Record<string, { icon: string; label: string }> = {
+                      hp_potion: { icon: '🧪', label: 'HP +30' },
+                      time_freeze: { icon: '💎', label: '+10s' },
+                    };
+                    const def = defs[item.id];
+                    if (!def || item.qty <= 0) return null;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          useGameStore.getState().useItem(item.id);
+                          playSound('itemUse');
+                          setBattleInventory(prev => prev.map(i => i.id === item.id ? { ...i, qty: i.qty - 1 } : i).filter(i => i.qty > 0));
+                          if (token && user) {
+                            fetch('/api/shop/consume', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ itemId: item.id }),
+                            }).catch(() => {});
+                          }
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-neon-green/30 bg-neon-green/5 hover:bg-neon-green/10 transition-all font-orbitron text-xs text-neon-green"
+                      >
+                        <span>{def.icon}</span>
+                        <span>{def.label}</span>
+                        <span className="ml-1 text-slate-500">×{item.qty}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}

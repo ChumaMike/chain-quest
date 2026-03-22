@@ -424,7 +424,8 @@ export default class OpenWorldScene extends Phaser.Scene {
   createZoneParticles() {
     for (const zone of ZONE_CONFIGS) {
       const col = WORLD_COLORS[zone.worldId] || 0x888888;
-      for (let i = 0; i < 8; i++) {
+      const count = 15 + Math.floor(Math.random() * 11); // 15–25
+      for (let i = 0; i < count; i++) {
         const px = zone.x + 40 + Math.random() * (zone.width - 80);
         const py = zone.y + 40 + Math.random() * (zone.height - 80);
         const particle = this.add.arc(px, py, 2, 0, 360, false, col, 0.3);

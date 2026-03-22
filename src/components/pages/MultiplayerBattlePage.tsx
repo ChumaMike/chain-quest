@@ -19,11 +19,14 @@ export default function MultiplayerBattlePage() {
     room, localSocketId, currentQuestion, questionIndex, totalQuestions,
     timeRemaining, bossHP, bossMaxHP, latestReveal, rankings,
     answeredThisRound, isReconnecting, reconnectAttempt,
+    battleMessages, battleRewards,
   } = useMultiplayerStore();
-  const { submitAnswer: socketSubmit } = useSocket();
+  const { submitAnswer: socketSubmit, sendBattleChat } = useSocket();
 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [phase, setPhase] = useState<'question' | 'reveal' | 'end'>('question');
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
   const [damagePopups, setDamagePopups] = useState<DamagePopup[]>([]);
   const popupCounterRef = useRef(0);
   const [showEnd, setShowEnd] = useState(false);
@@ -71,6 +74,13 @@ export default function MultiplayerBattlePage() {
     setDamagePopups(p => [...p, { id, text, color }]);
     setTimeout(() => setDamagePopups(p => p.filter(d => d.id !== id)), 1500);
   }, []);
+
+  const sendChat = () => {
+    const msg = chatInput.trim();
+    if (!msg || !code) return;
+    sendBattleChat(code, msg);
+    setChatInput('');
+  };
 
   const handleAnswer = (idx: number) => {
     if (phase !== 'question' || selectedIndex !== null || !currentQuestion || answeredThisRound) return;
@@ -298,6 +308,48 @@ export default function MultiplayerBattlePage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* In-battle chat */}
+          <div className="fixed bottom-4 right-4 z-30 w-64">
+            {chatOpen && (
+              <div className="bg-dark-900/95 backdrop-blur-sm rounded-xl border border-white/10 mb-2 overflow-hidden">
+                <div className="h-32 overflow-y-auto px-3 py-2 space-y-1">
+                  {battleMessages.length === 0 ? (
+                    <div className="text-slate-700 text-xs font-mono text-center pt-3">No messages yet</div>
+                  ) : battleMessages.map(m => (
+                    <div key={m.id} className="flex gap-1.5 items-start">
+                      <span className="font-orbitron text-xs flex-shrink-0 text-neon-cyan">{m.displayName.slice(0, 8)}:</span>
+                      <span className="font-mono text-xs text-slate-300 break-all">{m.message}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-1 px-2 py-1 border-t border-white/5">
+                  {['🔥','💀','⚡','🏆'].map(e => (
+                    <button key={e} onClick={() => sendBattleChat(code!, e)} className="text-sm hover:scale-125 transition-transform">{e}</button>
+                  ))}
+                </div>
+                <div className="flex gap-2 px-2 py-2 border-t border-white/5">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    maxLength={80}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') sendChat(); e.stopPropagation(); }}
+                    placeholder="Say something..."
+                    className="flex-1 bg-dark-800 border border-white/10 rounded px-2 py-1 text-xs font-mono text-white placeholder-slate-700 focus:outline-none focus:border-neon-cyan/50"
+                  />
+                  <button onClick={sendChat} className="px-2 py-1 rounded text-xs bg-neon-cyan/20 border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/30">↵</button>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => setChatOpen(o => !o)}
+              className="flex items-center gap-2 bg-dark-900/80 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-1.5 hover:border-neon-cyan/40 transition-colors text-xs font-orbitron text-slate-400"
+            >
+              <span>💬</span> CHAT
+              {!chatOpen && battleMessages.length > 0 && <span className="w-2 h-2 rounded-full bg-neon-cyan animate-pulse" />}
+            </button>
+          </div>
         </div>
 
         {/* Winner Podium Modal */}
@@ -340,6 +392,29 @@ export default function MultiplayerBattlePage() {
                 );
               })}
             </div>
+
+            {/* Battle rewards */}
+            {battleRewards && (
+              <div className="mt-4 mb-4 p-3 rounded-xl border border-neon-green/30 bg-neon-green/5">
+                <div className="font-orbitron text-xs text-neon-green mb-2">YOUR REWARDS</div>
+                {(() => {
+                  const myReward = localSocketId ? battleRewards[localSocketId] : null;
+                  if (!myReward) return null;
+                  return (
+                    <div className="flex gap-4 justify-center">
+                      <div className="text-center">
+                        <div className="font-orbitron text-lg text-neon-cyan">+{myReward.xp}</div>
+                        <div className="text-slate-600 text-xs">XP</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-orbitron text-lg text-neon-amber">+{myReward.cqt}</div>
+                        <div className="text-slate-600 text-xs">CQT</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             <div className="flex gap-3">
               <Button onClick={() => navigate('/multiplayer')} variant="neon" className="flex-1">⚔ REMATCH</Button>

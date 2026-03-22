@@ -19,6 +19,7 @@ interface GameStore {
   submitAnswer: (answerIndex: number) => AnswerResult | null;
   advanceQuestion: () => void;
   useItem: (itemId: string) => void;
+  consumeItem: (itemId: string, token: string) => void;
   useHint: () => number | null;
   endBattle: (outcome: 'victory' | 'defeat') => void;
   resetBattle: () => void;
@@ -243,6 +244,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
+  consumeItem: (itemId, token) => {
+    const { battle } = get();
+    if (battle.phase !== 'question') return;
+    // Apply effect immediately
+    if (itemId === 'hp_potion') {
+      set((state) => ({
+        battle: { ...state.battle, playerHP: Math.min(state.battle.maxHP, state.battle.playerHP + 30) },
+      }));
+    } else if (itemId === 'time_freeze') {
+      set((state) => ({
+        battle: { ...state.battle, timeRemaining: state.battle.timeRemaining + 10 },
+      }));
+    } else if (itemId === 'hint_scroll') {
+      get().useHint();
+    }
+    // Persist consumption to server (fire and forget)
+    fetch('/api/shop/consume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ itemId }),
+    }).catch(() => {});
+  },
+
   useHint: () => {
     const { battle, hintsRemaining, totalHintsUsed } = get();
     if (hintsRemaining <= 0 || !battle.currentQuestion) return null;
@@ -322,6 +346,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const known = ACHIEVEMENTS.find(a => a.id === id);
     if (!known) return;
     set({ unlockedAchievements: [...unlockedAchievements, id] });
+    window.dispatchEvent(new CustomEvent('achievement:unlocked', { detail: id }));
   },
 
   checkAchievements: () => {

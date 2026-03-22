@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
 import { useWeb3 } from '../../hooks/useWeb3';
+import { toggleMute, isMuted, initAudio } from '../../game/audio/SoundManager';
 
 const NAV_LINKS = [
   { path: '/world', label: 'World', icon: '🌐' },
@@ -17,6 +18,7 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [muted, setMuted] = useState(isMuted());
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
@@ -76,6 +78,15 @@ export default function Navbar() {
                 🦊 Connect
               </button>
             )}
+
+            {/* Mute toggle */}
+            <button
+              onClick={() => { initAudio(); setMuted(toggleMute()); }}
+              className="hidden sm:flex items-center justify-center w-8 h-8 rounded border border-white/10 text-slate-400 hover:text-white hover:border-white/30 transition-all text-sm"
+              title={muted ? 'Unmute' : 'Mute'}
+            >
+              {muted ? '🔇' : '🔊'}
+            </button>
 
             {/* Username — desktop only */}
             <span className="hidden md:block text-slate-400 text-xs font-mono">{user?.username}</span>
@@ -148,12 +159,21 @@ export default function Navbar() {
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-1.5 rounded text-xs font-orbitron text-red-400 border border-red-400/20 hover:bg-red-400/10 transition-all"
-                >
-                  EXIT
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { initAudio(); setMuted(toggleMute()); }}
+                    className="flex items-center justify-center w-8 h-8 rounded border border-white/10 text-slate-400 hover:text-white hover:border-white/30 transition-all text-sm"
+                    title={muted ? 'Unmute' : 'Mute'}
+                  >
+                    {muted ? '🔇' : '🔊'}
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-1.5 rounded text-xs font-orbitron text-red-400 border border-red-400/20 hover:bg-red-400/10 transition-all"
+                  >
+                    EXIT
+                  </button>
+                </div>
               </div>
 
               {!isConnected && (
