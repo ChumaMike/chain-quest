@@ -3,11 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { useSocket } from '../../hooks/useSocket';
 import PhaserGame from '../../game/PhaserGame';
 import ProgressBar from '../ui/ProgressBar';
 import { WORLDS } from '../../data/curriculum';
 import OpenWorldScene from '../../game/scenes/OpenWorldScene';
+import { KARABO_INTRO, KARABO_BOSS_NEAR } from '../../data/karabo';
+import { KaraboCompanion, useKarabo } from '../ui/KaraboCompanion';
+import { apiFetch } from '../../lib/api';
 import { isMobile } from '../../utils/device';
 
 interface ChatMsg { id: number; displayName: string; heroClass: string; message: string; self?: boolean }
@@ -17,6 +21,7 @@ const IS_MOBILE = isMobile();
 export default function OpenWorldPage() {
   const { user, token } = useAuthStore();
   const { completedWorlds, currentLevel, totalXP } = useGameStore();
+  const { controlMode } = useSettingsStore();
   const navigate = useNavigate();
   const socket = useSocket();
   const [profile, setProfile] = useState<any>(null);
@@ -31,16 +36,20 @@ export default function OpenWorldPage() {
   const [npcTip, setNpcTip] = useState<string | null>(null);
   const [bossClearToast, setBossClearToast] = useState<string | null>(null);
   const [lockedMsg, setLockedMsg] = useState<string | null>(null);
+  const [thumbPos, setThumbPos] = useState({ x: 0, y: 0 });
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const chatMsgId = useRef(0);
+  const karabo = useKarabo(1);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const seenZones = useRef<Set<string>>(new Set());
   const joystickZoneRef = useRef<HTMLDivElement>(null);
   const joystickOrigin = useRef<{ x: number; y: number } | null>(null);
+  const tiltActiveRef = useRef(true);
 
   useEffect(() => {
     if (!user || !token) return;
-    fetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => { setProfile(data.profile); setLoading(false); })
       .catch(() => { setLoading(false); setLoadError(true); });
@@ -75,6 +84,36 @@ export default function OpenWorldPage() {
     if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, chatOpen]);
 
+  // Tilt-to-move via DeviceOrientation API
+  useEffect(() => {
+    if (!IS_MOBILE || controlMode !== 'tilt') return;
+    const TILT_DEAD = 4;
+    const TILT_MAX = 30;
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+    const toAxis = (deg: number) => {
+      const d = Math.abs(deg) < TILT_DEAD ? 0 : deg;
+      return clamp(d / TILT_MAX, -1, 1);
+    };
+    const handleTilt = (e: DeviceOrientationEvent) => {
+      if (!tiltActiveRef.current) return;
+      const gamma = e.gamma ?? 0;  // left/right tilt
+      const beta  = e.beta  ?? 0;  // forward/back tilt
+      OpenWorldScene.joystickInput = { vx: toAxis(gamma), vy: toAxis(beta - 10) };
+    };
+    const handleTap = () => {
+      OpenWorldScene.joystickInput = { vx: 0, vy: 0 };
+      tiltActiveRef.current = false;
+      setTimeout(() => { tiltActiveRef.current = true; }, 600);
+    };
+    window.addEventListener('deviceorientation', handleTilt);
+    window.addEventListener('touchstart', handleTap, { passive: true });
+    return () => {
+      window.removeEventListener('deviceorientation', handleTilt);
+      window.removeEventListener('touchstart', handleTap);
+      OpenWorldScene.joystickInput = { vx: 0, vy: 0 };
+    };
+  }, [controlMode]);
+
   const handleZoneChanged = useCallback((zone: string) => {
     setCurrentZone(zone);
     const world = WORLDS.find(w => w.name === zone);
@@ -82,8 +121,11 @@ export default function OpenWorldPage() {
       seenZones.current.add(zone);
       setZoneCard({ zone, worldId: world.id });
       setTimeout(() => setZoneCard(null), 5000);
+      // Karabo intro for this world
+      const introMsg = KARABO_INTRO[world.id];
+      if (introMsg) karabo.show('intro', introMsg, 6000);
     }
-  }, []);
+  }, [karabo]);
 
   const handleNpcTalk = useCallback((worldId: number) => {
     const world = WORLDS.find(w => w.id === worldId);
@@ -164,6 +206,9 @@ export default function OpenWorldPage() {
 
   return (
     <div className="fixed inset-0 overflow-hidden" style={{ paddingTop: '56px' }}>
+      {/* Karabo companion */}
+      <KaraboCompanion phase={karabo.phase} message={karabo.message} worldId={karabo.worldId} onDismiss={karabo.dismiss} />
+
       {/* Phaser canvas */}
       <div className="absolute inset-0" style={{ top: '56px' }}>
         <PhaserGame
@@ -431,51 +476,121 @@ export default function OpenWorldPage() {
         </div>
       )}
 
+      {/* Settings modal — mobile controls */}
+      <AnimatePresence>
+        {settingsOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
+            onClick={() => setSettingsOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-dark-800 border border-neon-cyan/20 rounded-xl p-6 w-72 mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="font-orbitron text-sm text-neon-cyan mb-4">⚙ CONTROLS</h3>
+              {(['joystick', 'tilt'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => { useSettingsStore.getState().setControlMode(mode); setSettingsOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-2 border font-orbitron text-xs transition-all ${
+                    controlMode === mode
+                      ? 'bg-neon-cyan/10 border-neon-cyan/40 text-neon-cyan'
+                      : 'border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+                  }`}
+                >
+                  {mode === 'joystick' ? '🕹 Analog Stick' : '📱 Tilt to Move'}
+                  {controlMode === mode && <span className="ml-auto text-neon-cyan">●</span>}
+                </button>
+              ))}
+              {controlMode === 'tilt' && (
+                <p className="text-slate-500 text-xs mt-2 font-mono leading-relaxed">
+                  Tilt device to move. Touch screen to pause movement briefly.
+                </p>
+              )}
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="w-full mt-3 py-2 rounded text-slate-500 text-xs hover:text-slate-300 font-orbitron"
+              >
+                CLOSE
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Mobile controls ─────────────────────────────────── */}
       {IS_MOBILE && (
         <>
-          {/* Virtual D-Pad — bottom left */}
-          <div
-            ref={joystickZoneRef}
-            className="joystick-zone absolute z-30 pb-safe"
-            style={{ left: 16, bottom: 16 + (window.innerHeight < 700 ? 0 : 8) }}
-            onPointerDown={(e) => {
-              const rect = joystickZoneRef.current!.getBoundingClientRect();
-              joystickOrigin.current = {
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2,
-              };
-              joystickZoneRef.current!.setPointerCapture(e.pointerId);
-            }}
-            onPointerMove={(e) => {
-              if (!joystickOrigin.current) return;
-              const dx = e.clientX - joystickOrigin.current.x;
-              const dy = e.clientY - joystickOrigin.current.y;
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              const maxDist = 40;
-              const norm = dist > maxDist ? maxDist / dist : 1;
-              OpenWorldScene.joystickInput = { vx: (dx * norm) / maxDist, vy: (dy * norm) / maxDist };
-            }}
-            onPointerUp={() => {
-              joystickOrigin.current = null;
-              OpenWorldScene.joystickInput = { vx: 0, vy: 0 };
-            }}
-            onPointerCancel={() => {
-              joystickOrigin.current = null;
-              OpenWorldScene.joystickInput = { vx: 0, vy: 0 };
-            }}
+          {/* Settings gear — top right */}
+          <button
+            className="absolute top-16 right-4 z-30 w-9 h-9 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white/50 hover:text-white active:bg-white/10"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Controls settings"
           >
-            {/* Outer ring */}
-            <div className="relative w-24 h-24 rounded-full border-2 border-white/20 bg-black/30 backdrop-blur-sm flex items-center justify-center">
-              {/* Directional arrows */}
-              <span className="absolute top-1 left-1/2 -translate-x-1/2 text-white/40 text-xs">▲</span>
-              <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-white/40 text-xs">▼</span>
-              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-white/40 text-xs">◀</span>
-              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-white/40 text-xs">▶</span>
-              {/* Inner dot */}
-              <div className="w-8 h-8 rounded-full bg-neon-cyan/30 border border-neon-cyan/50" />
+            ⚙
+          </button>
+
+          {/* Analog joystick — bottom left (joystick mode) */}
+          {controlMode === 'joystick' && (
+            <div
+              ref={joystickZoneRef}
+              className="joystick-zone absolute z-30 pb-safe"
+              style={{ left: 16, bottom: 16 + (window.innerHeight < 700 ? 0 : 8) }}
+              onPointerDown={(e) => {
+                const rect = joystickZoneRef.current!.getBoundingClientRect();
+                joystickOrigin.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                joystickZoneRef.current!.setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                if (!joystickOrigin.current) return;
+                const dx = e.clientX - joystickOrigin.current.x;
+                const dy = e.clientY - joystickOrigin.current.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = 40;
+                const norm = dist > maxDist ? maxDist / dist : 1;
+                const cx = dx * norm;
+                const cy = dy * norm;
+                setThumbPos({ x: cx, y: cy });
+                OpenWorldScene.joystickInput = { vx: cx / maxDist, vy: cy / maxDist };
+              }}
+              onPointerUp={() => {
+                joystickOrigin.current = null;
+                setThumbPos({ x: 0, y: 0 });
+                OpenWorldScene.joystickInput = { vx: 0, vy: 0 };
+              }}
+              onPointerCancel={() => {
+                joystickOrigin.current = null;
+                setThumbPos({ x: 0, y: 0 });
+                OpenWorldScene.joystickInput = { vx: 0, vy: 0 };
+              }}
+            >
+              <div className="relative w-24 h-24 rounded-full border-2 border-white/20 bg-black/30 backdrop-blur-sm flex items-center justify-center">
+                {/* Moving thumb */}
+                <div
+                  className="absolute w-10 h-10 rounded-full bg-neon-cyan/50 border-2 border-neon-cyan/80 shadow-lg pointer-events-none"
+                  style={{
+                    transform: `translate(${thumbPos.x}px, ${thumbPos.y}px)`,
+                    transition: thumbPos.x === 0 && thumbPos.y === 0 ? 'transform 0.15s ease' : 'none',
+                  }}
+                />
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Tilt mode indicator — bottom left */}
+          {controlMode === 'tilt' && (
+            <div className="absolute z-30 left-4 pb-safe" style={{ bottom: 16 }}>
+              <div className="w-24 h-24 rounded-full border-2 border-neon-orange/30 bg-black/30 backdrop-blur-sm flex items-center justify-center">
+                <span className="text-neon-orange/60 text-xs font-mono text-center leading-tight">TILT<br/>MODE</span>
+              </div>
+            </div>
+          )}
 
           {/* FIGHT button — bottom right */}
           <button

@@ -66,4 +66,53 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     description: 'Complete all 7 worlds',
     emoji: '🏆',
   },
+  // ─── GDD Achievements ────────────────────────────────────────────────────────
+  {
+    id: 'auditor',
+    name: 'Auditor',
+    description: 'Defeat a boss without any wrong answers or hints used',
+    emoji: '🔍',
+  },
+  {
+    id: 'protocol_builder',
+    name: 'Protocol Builder',
+    description: 'Reach Skill Tier 3 — complete Worlds 1–9',
+    emoji: '🔧',
+  },
+  {
+    id: 'dapp_architect',
+    name: 'DApp Architect',
+    description: 'Reach Skill Tier 4 — complete Worlds 1–12',
+    emoji: '🏗️',
+  },
+  {
+    id: 'chain_sovereign',
+    name: 'Chain Sovereign',
+    description: 'Complete all 16 worlds — you are the blockchain',
+    emoji: '👑',
+  },
+  {
+    id: 'speed_runner',
+    name: 'Speed Runner',
+    description: 'Complete any world without using all question time',
+    emoji: '💨',
+  },
+  {
+    id: 'first_to_mint',
+    name: 'First to Mint',
+    description: 'Complete The NFT Nexus (World 15)',
+    emoji: '🎨',
+  },
+  {
+    id: 'first_duel',
+    name: 'First Duel',
+    description: 'Win your first Duel mini-game',
+    emoji: '⚔️',
+  },
+  {
+    id: 'jumper_ace',
+    name: 'Jumper Ace',
+    description: 'Reach the top of The Jumper without losing a life',
+    emoji: '🪂',
+  },
 ];

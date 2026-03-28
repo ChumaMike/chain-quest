@@ -1,5 +1,5 @@
 // ─── Hero Classes ─────────────────────────────────────────────────────────────
-export type HeroClassId = 'validator' | 'miner' | 'degen' | 'archivist';
+export type HeroClassId = 'validator' | 'miner' | 'degen' | 'archivist' | 'dao_diplomat';
 
 export interface HeroClass {
   id: HeroClassId;
@@ -41,6 +41,41 @@ export interface Question {
   concept: string;
 }
 
+// ─── Terrain ──────────────────────────────────────────────────────────────────
+export type TerrainId =
+  | 'mempool_swamp' | 'consensus_peaks' | 'contract_sanctum' | 'liquidity_lagoon'
+  | 'oracle_outpost' | 'governance_hall' | 'rollup_ridges' | 'nft_nexus';
+
+export interface TerrainDef {
+  id: TerrainId;
+  name: string;
+  emoji: string;
+  description: string;
+  favouredClass: HeroClassId;
+  timerBonus: number;       // extra seconds
+  xpMultiplier: number;     // e.g. 1.25
+  damageMultiplier: number; // e.g. 1.15
+}
+
+// ─── Skill Tiers ──────────────────────────────────────────────────────────────
+export interface SkillTier {
+  tier: 1 | 2 | 3 | 4 | 5 | 6;
+  title: string;
+  worldRange: [number, number];
+  color: string;
+}
+
+// ─── Traps ────────────────────────────────────────────────────────────────────
+export interface TrapDef {
+  id: string;
+  name: string;
+  emoji: string;
+  deployCost: number; // consecutive correct answers needed
+  effect: string;
+  description: string;
+  counterConcept: string;
+}
+
 // ─── Worlds ───────────────────────────────────────────────────────────────────
 export interface WorldData {
   id: number;
@@ -54,6 +89,7 @@ export interface WorldData {
   color: string;
   gradient: string;
   emoji: string;
+  terrain: TerrainId;
   boss: BossData;
   questions: Question[];
   cqtReward: number;
@@ -139,6 +175,10 @@ export interface BattleState {
   xpGained: number;
   cqtReward: number;
   isPerfect: boolean;
+  terrainBonusActive: boolean;
+  terrainName: string;
+  trapStack: string[];
+  trapReady: boolean;
 }
 
 export interface AnswerResult {

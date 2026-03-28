@@ -57,6 +57,20 @@ export const HEROES: HeroClass[] = [
     color: '#8b5cf6',
     gradient: 'from-purple-600 to-violet-800',
   },
+  {
+    id: 'dao_diplomat',
+    name: 'The DAO Diplomat',
+    description: 'A governance expert who turns every mistake into a vote.',
+    lore: 'DAO Diplomats have shaped the on-chain constitutions of a hundred protocols. They never act alone — they call a vote. Once per battle, when defeat looms, they open the floor to governance and reverse the outcome.',
+    emoji: '🗳️',
+    baseHP: 95,
+    attackMultiplier: 1.1,
+    defenseReduction: 0.15,
+    passiveAbility: 'Governance Vote',
+    passiveDescription: 'Once per battle: when a wrong answer would deal damage, a 10-second governance window opens. Answer a bonus question correctly to negate the damage.',
+    color: '#f59e0b',
+    gradient: 'from-amber-500 to-yellow-700',
+  },
 ];
 
 export const HERO_MAP = Object.fromEntries(HEROES.map(h => [h.id, h])) as Record<string, HeroClass>;

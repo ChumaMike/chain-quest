@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import type { BattleState, BattlePhase, Question, AnswerResult, StreakMultiplier } from '../types';
 import { HEROES } from '../data/heroes';
 import { WORLDS } from '../data/curriculum';
+import { TERRAIN_MAP } from '../data/terrains';
 import { ACHIEVEMENTS } from '../data/achievements';
+import { apiFetch } from '../lib/api';
 
 interface GameStore {
   battle: BattleState;
@@ -53,6 +55,10 @@ const defaultBattle: BattleState = {
   xpGained: 0,
   cqtReward: 0,
   isPerfect: true,
+  terrainBonusActive: false,
+  terrainName: '',
+  trapStack: [],
+  trapReady: false,
 };
 
 function getStreakMultiplier(streak: number, heroClass: string): StreakMultiplier {
@@ -89,6 +95,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const questions = [...world.questions].sort(() => Math.random() - 0.5);
     const hintsForClass = heroClassId === 'archivist' ? 2 : 0;
 
+    // Terrain bonus: hero class matches the world's favoured terrain class
+    const terrain = world.terrain ? TERRAIN_MAP[world.terrain] : null;
+    const terrainBonusActive = terrain ? terrain.favouredClass === heroClassId : false;
+    const terrainName = terrain?.name || '';
+
     set({
       hintsRemaining: hintsForClass,
       battle: {
@@ -106,14 +117,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
         streak: 0,
         multiplier: 1,
         score: 0,
-        timeRemaining: questions[0]?.timeLimitSec || 30,
+        timeRemaining: (questions[0]?.timeLimitSec || 30) + (terrainBonusActive && terrain ? terrain.timerBonus : 0),
         selectedAnswerIndex: null,
         answerResult: null,
         xpGained: 0,
         cqtReward: world.cqtReward,
         isPerfect: true,
-        // Store shuffled questions for advancing
-        ...({ _questions: questions } as any),
+        terrainBonusActive,
+        terrainName,
+        trapStack: [],
+        trapReady: false,
+        // Store hero class + shuffled questions for advancing
+        ...({ _questions: questions, _heroClass: heroClassId, _shieldActive: heroClassId === 'validator', _govVoteUsed: false } as any),
       },
     });
   },
@@ -140,14 +155,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const mult = battle.multiplier;
       const attackMult = HEROES.find(h => h.id === heroClass)?.attackMultiplier || 1.0;
       const hardBonus = (q.difficulty === 'hard' || q.difficulty === 'boss') && heroClass === 'miner' ? 2 : 1;
-      damageDealt = Math.round(q.damage * attackMult * mult * hardBonus);
+      const terrainDmgMult = battle.terrainBonusActive ? 1.15 : 1;
+      const terrainXpMult = battle.terrainBonusActive ? 1.25 : 1;
+      damageDealt = Math.round(q.damage * attackMult * mult * hardBonus * terrainDmgMult);
       newBossHP = Math.max(0, battle.bossHP - damageDealt);
       newStreak = battle.streak + 1;
       const speedBonus = Math.floor((battle.timeRemaining / (q.timeLimitSec)) * 50);
       newScore = battle.score + damageDealt * 10 + speedBonus;
       const xpMult = xpBoostActive ? 2 : 1;
       const diffFactor = q.difficulty === 'easy' ? 1 : q.difficulty === 'medium' ? 1.5 : 2;
-      xpGained = Math.round(q.damage * mult * diffFactor * xpMult);
+      xpGained = Math.round(q.damage * mult * diffFactor * xpMult * terrainXpMult);
     } else {
       const defenseMult = HEROES.find(h => h.id === heroClass)?.defenseReduction || 0.2;
       damageTaken = Math.round(q.damage * 0.5 * (1 - defenseMult));
@@ -157,6 +174,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (heroClass === 'validator' && shieldActive && battle.streak >= 3) {
         damageTaken = 0;
         (battle as any)._shieldActive = false;
+      }
+      // DAO Diplomat passive: Governance Vote — negate damage once per battle (flag _govVoteUsed)
+      else if (heroClass === 'dao_diplomat' && !(battle as any)._govVoteUsed) {
+        damageTaken = 0;
+        (battle as any)._govVoteUsed = true;
       } else {
         newHP = Math.max(0, battle.playerHP - damageTaken);
       }
@@ -167,6 +189,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Validator: activate shield when streak hits 3
     if (heroClass === 'validator' && newStreak === 3) {
       (battle as any)._shieldActive = true;
+    }
+
+    // Trap: increment consecutive correct counter; ready at 3
+    if (correct) {
+      const prevConsec = (battle as any)._consecCorrect || 0;
+      const newConsec = prevConsec + 1;
+      (battle as any)._consecCorrect = newConsec;
+      if (newConsec >= 3 && !battle.trapReady) {
+        set((state) => ({ battle: { ...state.battle, trapReady: true } }));
+      }
+    } else {
+      (battle as any)._consecCorrect = 0;
     }
 
     const newMultiplier = getStreakMultiplier(newStreak, heroClass);
@@ -260,7 +294,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       get().useHint();
     }
     // Persist consumption to server (fire and forget)
-    fetch('/api/shop/consume', {
+    apiFetch('/api/shop/consume', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ itemId }),
@@ -357,10 +391,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (completedWorlds.includes(1)) unlockAchievement('blockchain_basics');
     if (completedWorlds.includes(3)) unlockAchievement('defi_pioneer');
 
-    // Tier 3 — Dedication
+    // World completion milestones
     if (completedWorlds.length >= 7) unlockAchievement('world_champion');
+    if (completedWorlds.length >= 16) unlockAchievement('chain_sovereign');
+    if (completedWorlds.includes(15)) unlockAchievement('first_to_mint');
 
-    // Tier 2 — Mastery (streak)
+    // Skill tier achievements
+    if (completedWorlds.length >= 9) unlockAchievement('protocol_builder');
+    if (completedWorlds.length >= 12) unlockAchievement('dapp_architect');
+
+    // Streak
     if (battle.streak >= 5) unlockAchievement('hot_streak');
+
+    // Perfect run (no wrong answers, no hints)
+    if (battle.phase === 'victory' && battle.isPerfect && get().hintsRemaining === (((battle as any)._heroClass === 'archivist') ? 2 : 0)) {
+      unlockAchievement('auditor');
+    }
   },
 }));

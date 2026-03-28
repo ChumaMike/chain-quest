@@ -7,6 +7,8 @@ import { ACHIEVEMENTS } from '../../data/achievements';
 import { useWeb3 } from '../../hooks/useWeb3';
 import { WORLDS } from '../../data/curriculum';
 import { HEROES } from '../../data/heroes';
+import { getTierProgress } from '../../data/skillTiers';
+import { apiFetch } from '../../lib/api';
 import ProgressBar from '../ui/ProgressBar';
 import PageWrapper from '../ui/PageWrapper';
 import Button from '../ui/Button';
@@ -37,7 +39,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user || !token) return;
-    fetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
         setProfile(data.profile);
@@ -58,7 +60,7 @@ export default function ProfilePage() {
     if (!token || !user) return;
     setBuyingItem(itemId);
     try {
-      const res = await fetch('/api/shop/buy', {
+      const res = await apiFetch('/api/shop/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ itemId, userId: user.id }),
@@ -77,6 +79,7 @@ export default function ProfilePage() {
   };
 
   const hero = profile ? HEROES.find(h => h.id === profile.hero_class) || HEROES[0] : HEROES[0];
+  const { current: skillTier, worldsInTier, totalInTier } = getTierProgress(completedWorlds);
 
   if (loading) {
     return (
@@ -93,6 +96,53 @@ export default function ProfilePage() {
     <PageWrapper>
       <div className="min-h-screen bg-grid pt-16 pb-10 px-4">
         <div className="max-w-4xl mx-auto space-y-6">
+
+          {/* ─── World Chain ────────────────────────────────────────────────── */}
+          <div className="neon-border-cyan bg-dark-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-orbitron text-sm text-neon-cyan">WORLD CHAIN</h2>
+              <span className="font-mono text-xs text-slate-500">{completedWorlds.length}/16 worlds</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {WORLDS.map(w => {
+                const cleared = completedWorlds.includes(w.id);
+                return (
+                  <motion.div
+                    key={w.id}
+                    title={w.name}
+                    whileHover={{ scale: 1.15 }}
+                    className="relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-lg cursor-default"
+                    style={{
+                      background: cleared ? `${w.color}22` : '#1a1a2e',
+                      border: `2px solid ${cleared ? w.color : '#333'}`,
+                      boxShadow: cleared ? `0 0 8px ${w.color}55` : 'none',
+                    }}
+                  >
+                    {cleared ? w.emoji : <span className="text-slate-700 text-sm font-bold">{w.id}</span>}
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ─── Skill Tier Banner ──────────────────────────────────────────── */}
+          <div className="rounded-xl p-4 border" style={{ borderColor: `${skillTier.color}44`, background: `${skillTier.color}11` }}>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="font-orbitron text-xs text-slate-400 mb-0.5">SKILL TIER {skillTier.tier}</div>
+                <div className="font-orbitron font-black text-xl" style={{ color: skillTier.color }}>
+                  {skillTier.title}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-xs text-slate-500">Worlds {skillTier.worldRange[0]}–{skillTier.worldRange[1]}</div>
+                <div className="font-mono text-xs mt-0.5" style={{ color: skillTier.color }}>
+                  {worldsInTier}/{totalInTier} complete
+                </div>
+              </div>
+            </div>
+            <ProgressBar value={worldsInTier} max={totalInTier} color={skillTier.color} height={6} />
+          </div>
 
           {/* Hero card */}
           <div className="neon-border-cyan bg-dark-800 rounded-xl p-6">

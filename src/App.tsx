@@ -11,6 +11,9 @@ import MultiplayerLobbyPage from './components/pages/MultiplayerLobbyPage';
 import MultiplayerBattlePage from './components/pages/MultiplayerBattlePage';
 import LeaderboardPage from './components/pages/LeaderboardPage';
 import ProfilePage from './components/pages/ProfilePage';
+import StudyGuidePage from './components/pages/StudyGuidePage';
+import DuelPage from './components/pages/DuelPage';
+import JumperPage from './components/pages/JumperPage';
 import Navbar from './components/ui/Navbar';
 import AchievementToast from './components/ui/AchievementToast';
 
@@ -38,6 +41,9 @@ export default function App() {
             <Route path="/multiplayer/room/:code" element={<ProtectedRoute><MultiplayerBattlePage /></ProtectedRoute>} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/study" element={<ProtectedRoute><StudyGuidePage /></ProtectedRoute>} />
+            <Route path="/game/duel" element={<ProtectedRoute><DuelPage /></ProtectedRoute>} />
+            <Route path="/game/jumper" element={<ProtectedRoute><JumperPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AnimatePresence>

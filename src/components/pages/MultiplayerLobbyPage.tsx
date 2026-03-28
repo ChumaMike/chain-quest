@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useMultiplayerStore } from '../../store/multiplayerStore';
 import { useSocket } from '../../hooks/useSocket';
 import { WORLDS } from '../../data/curriculum';
+import { apiFetch } from '../../lib/api';
 import { HEROES } from '../../data/heroes';
 import PageWrapper from '../ui/PageWrapper';
 import Button from '../ui/Button';
@@ -26,7 +27,7 @@ export default function MultiplayerLobbyPage() {
 
   useEffect(() => {
     if (!user || !token) return;
-    fetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
         setHeroClass(data.profile?.hero_class || 'validator');

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
 import { HEROES } from '../../data/heroes';
+import { apiFetch } from '../../lib/api';
 import PageWrapper from '../ui/PageWrapper';
 import Button from '../ui/Button';
 
@@ -33,7 +34,7 @@ export default function AvatarCreatorPage() {
     if (!displayName.trim() || !user) return;
     setSaving(true);
     try {
-      await fetch(`/api/profile/${user.id}`, {
+      await apiFetch(`/api/profile/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({

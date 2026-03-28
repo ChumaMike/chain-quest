@@ -9,7 +9,10 @@
     "server": "node server/index.js",
     "start": "NODE_ENV=production node server/index.js",
     "compile": "npx hardhat compile",
-    "deploy:sepolia": "npx hardhat run scripts/deployToken.js --network sepolia"
+    "deploy:sepolia": "npx hardhat run scripts/deployToken.js --network sepolia",
+    "cap:build": "npm run build && npx cap sync",
+    "cap:android": "npm run cap:build && npx cap open android",
+    "cap:ios": "npm run cap:build && npx cap open ios"
   },
   "engines": {
     "node": ">=22.5.0"

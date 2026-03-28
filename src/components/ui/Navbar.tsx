@@ -7,6 +7,7 @@ import { toggleMute, isMuted, initAudio } from '../../game/audio/SoundManager';
 
 const NAV_LINKS = [
   { path: '/world', label: 'World', icon: '🌐' },
+  { path: '/study', label: 'Study', icon: '📚' },
   { path: '/multiplayer', label: 'Multiplayer', icon: '⚔️' },
   { path: '/leaderboard', label: 'Leaderboard', icon: '🏆' },
   { path: '/profile', label: 'Profile', icon: '👤' },

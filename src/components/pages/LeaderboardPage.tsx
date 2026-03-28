@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { WORLDS } from '../../data/curriculum';
+import { apiFetch } from '../../lib/api';
 import { HEROES } from '../../data/heroes';
 import PageWrapper from '../ui/PageWrapper';
 import Button from '../ui/Button';
@@ -25,7 +26,7 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/leaderboard?world=${selectedWorld}&limit=50`)
+    apiFetch(`/api/leaderboard?world=${selectedWorld}&limit=50`)
       .then(r => r.json())
       .then(data => { setEntries(data.entries || []); setLoading(false); })
       .catch(() => setLoading(false));

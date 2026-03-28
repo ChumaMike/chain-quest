@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { ethers } from 'ethers';
 import { useWeb3Store } from '../store/web3Store';
 import { useAuthStore } from '../store/authStore';
+import { apiFetch } from '../lib/api';
 
 const CQT_ABI = [
   'function balanceOf(address account) view returns (uint256)',
@@ -37,7 +38,7 @@ export function useWeb3() {
       // Link wallet to user account
       if (authStore.token) {
         try {
-          await fetch('/api/auth/wallet', {
+          await apiFetch('/api/auth/wallet', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
             body: JSON.stringify({ walletAddress: address }),
@@ -111,7 +112,7 @@ export function useWeb3() {
 
   const claimReward = useCallback(async (worldId: number, token: string): Promise<{ success: boolean; txHash?: string; simulated?: boolean }> => {
     try {
-      const res = await fetch(`/api/profile/${authStore.user?.id}/claim-reward`, {
+      const res = await apiFetch(`/api/profile/${authStore.user?.id}/claim-reward`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ worldId }),

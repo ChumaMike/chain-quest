@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
+import { apiFetch } from '../../lib/api';
 import PageWrapper from '../ui/PageWrapper';
 import Button from '../ui/Button';
 
@@ -19,7 +20,7 @@ export default function AuthPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`/api/auth/${mode}`, {
+      const res = await apiFetch(`/api/auth/${mode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password }),

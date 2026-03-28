@@ -7,12 +7,15 @@ import { useCountdown } from '../../hooks/useCountdown';
 import { useSocket } from '../../hooks/useSocket';
 import { WORLDS } from '../../data/curriculum';
 import { HEROES } from '../../data/heroes';
+import { KARABO_INTRO, KARABO_WIN, KARABO_LOSE, KARABO_BOSS_NEAR } from '../../data/karabo';
+import { KaraboCompanion, useKarabo } from '../ui/KaraboCompanion';
 import ProgressBar from '../ui/ProgressBar';
 import PageWrapper from '../ui/PageWrapper';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 import { useWeb3 } from '../../hooks/useWeb3';
 import { playSound, initAudio } from '../../game/audio/SoundManager';
+import { apiFetch } from '../../lib/api';
 
 interface DamagePopup { id: number; text: string; color: string; x: number; y: number }
 
@@ -57,11 +60,13 @@ export default function BattlePage() {
   const world = WORLDS.find(w => w.id === wId);
   const hero = HEROES.find(h => h.id === heroClass) || HEROES[0];
   const popupId = { current: 0 };
+  const karabo = useKarabo(wId);
+  const wrongConsecRef = useRef(0);
 
   useEffect(() => {
     if (!user || !token) return;
     setBattlePhase('intro');
-    fetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
         const hc = data.profile?.hero_class || 'validator';
@@ -106,9 +111,14 @@ export default function BattlePage() {
     if (!result) return;
 
     if (result.correct) {
+      wrongConsecRef.current = 0;
       playSound('correct');
       addPopup(`-${result.damageDealt}`, '#00ff88');
       addPopup(`+${result.scoreGained}pts`, '#00d4ff');
+      // Karabo celebrate on correct
+      if (Math.random() < 0.3) {
+        karabo.show('celebrate', KARABO_WIN[Math.floor(Math.random() * KARABO_WIN.length)], 3000);
+      }
       // Speed demon achievement
       const q = battle.currentQuestion;
       if (q && battle.timeRemaining >= (q.timeLimitSec - 3)) {
@@ -130,15 +140,28 @@ export default function BattlePage() {
         setTimeout(() => setPassiveToast(null), 1800);
       }
     } else {
+      wrongConsecRef.current += 1;
       playSound('wrong');
       addPopup(`-${result.damageTaken} HP`, '#ff2244');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
+      // Karabo hint after 2 consecutive wrong answers
+      if (wrongConsecRef.current >= 2 && battle.currentQuestion) {
+        const concept = battle.currentQuestion.concept;
+        karabo.show('hint', `Still stuck on "${concept}"? Try thinking about the core definition first.`, 6000);
+      } else {
+        karabo.show('encourage', KARABO_LOSE[Math.floor(Math.random() * KARABO_LOSE.length)], 3500);
+      }
       // Validator shield passive toast
       const curHeroClass = (useGameStore.getState().battle as any)._heroClass || heroClass;
       if (curHeroClass === 'validator' && result.damageTaken === 0) {
         playSound('shieldBlock');
         setPassiveToast('🛡 SHIELD ABSORBED THE HIT!');
+        setTimeout(() => setPassiveToast(null), 1800);
+      }
+      // DAO Diplomat governance vote toast
+      if (curHeroClass === 'dao_diplomat' && result.damageTaken === 0) {
+        setPassiveToast('🗳 GOVERNANCE VOTE: DAMAGE NEGATED!');
         setTimeout(() => setPassiveToast(null), 1800);
       }
     }
@@ -150,6 +173,7 @@ export default function BattlePage() {
       playSound('bossEnrage');
       setPassiveToast(`⚠ ${world?.boss.name} IS ENRAGED!`);
       setTimeout(() => setPassiveToast(null), 2500);
+      karabo.show('boss', KARABO_BOSS_NEAR, 4000);
     }
 
     setTimeout(() => {
@@ -169,7 +193,7 @@ export default function BattlePage() {
     if (!user || !token) return;
     completeWorld(wId, battle.score);
     addXP(battle.xpGained);
-    fetch(`/api/profile/${user.id}/world-complete`, {
+    apiFetch(`/api/profile/${user.id}/world-complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ worldId: wId, score: battle.score, stars: battle.score > 5000 ? 3 : 2, perfect }),
@@ -225,6 +249,12 @@ export default function BattlePage() {
             animate={{ opacity: 1, scale: 1 }}
             className="max-w-md w-full"
           >
+          <KaraboCompanion
+            phase="intro"
+            worldId={wId}
+            message={KARABO_INTRO[wId]}
+            onDismiss={karabo.dismiss}
+          />
             <div className="neon-border-cyan bg-dark-800 rounded-2xl p-5 sm:p-8 text-center overflow-y-auto max-h-[90vh]">
               {/* World header */}
               <div className="mb-4">
@@ -276,12 +306,21 @@ export default function BattlePage() {
   return (
     <PageWrapper>
       <div className={`min-h-screen bg-grid pt-14 pb-6 px-4 ${isShaking ? 'screen-shake' : ''}`} style={{ background: `radial-gradient(ellipse at 50% 0%, ${world.color}08 0%, #04060f 60%)` }}>
+        {/* Karabo companion */}
+        <KaraboCompanion phase={karabo.phase} message={karabo.message} worldId={wId} onDismiss={karabo.dismiss} />
+
         <div className="max-w-2xl mx-auto">
           {/* World header */}
           <div className="text-center mb-4">
             <div className="flex items-center justify-center gap-2 mb-1">
               <span className="text-2xl">{world.emoji}</span>
               <span className="font-orbitron font-bold text-sm" style={{ color: world.color }}>{world.name.toUpperCase()}</span>
+              {/* Terrain bonus badge */}
+              {battle.terrainBonusActive && (
+                <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-amber-400/40 bg-amber-950/60 text-amber-400">
+                  ⚔ {battle.terrainName} · +15% DMG
+                </span>
+              )}
             </div>
             <div className="text-slate-600 text-xs font-mono">Q {battle.questionIndex + 1} / {battle.totalQuestions}</div>
           </div>
@@ -415,7 +454,7 @@ export default function BattlePage() {
                           playSound('itemUse');
                           setBattleInventory(prev => prev.map(i => i.id === item.id ? { ...i, qty: i.qty - 1 } : i).filter(i => i.qty > 0));
                           if (token && user) {
-                            fetch('/api/shop/consume', {
+                            apiFetch('/api/shop/consume', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                               body: JSON.stringify({ itemId: item.id }),

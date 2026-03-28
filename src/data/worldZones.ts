@@ -84,4 +84,6 @@ export const MINI_GAME_PORTALS = [
   { x: 960,  y: 900, radius: 40, sceneKey: 'BlockRacerScene',   color: 0x00d4ff, label: '🏎 BLOCK RACER' },
   { x: 1600, y: 900, radius: 40, sceneKey: 'NodeDefenderScene', color: 0xff8800, label: '🛡 NODE DEFENDER' },
   { x: 2240, y: 900, radius: 40, sceneKey: 'HashPuzzleScene',   color: 0x8b5cf6, label: '🔐 HASH PUZZLE' },
+  { x: 640,  y: 1200, radius: 40, sceneKey: 'DuelScene',        color: 0xf59e0b, label: '⚔ THE DUEL' },
+  { x: 1280, y: 800,  radius: 40, sceneKey: 'JumperScene',      color: 0x00d4ff, label: '🪂 THE JUMPER' },
 ];

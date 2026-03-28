@@ -2,12 +2,13 @@ import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useMultiplayerStore } from '../store/multiplayerStore';
 import type { Question } from '../types';
+import { WS_URL } from '../lib/api';
 
 let socketInstance: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socketInstance) {
-    socketInstance = io('/', {
+    socketInstance = io(WS_URL, {
       transports: ['websocket', 'polling'],
       autoConnect: false,
     });
