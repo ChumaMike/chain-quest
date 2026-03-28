@@ -44,7 +44,7 @@ function joinRoom(code, socketId, displayName, heroClass) {
   if (room.players.length >= room.maxPlayers) return { error: 'Room is full', code: 'FULL' };
   if (room.players.find(p => p.id === socketId)) return { error: 'Already in room', code: 'DUPLICATE' };
 
-  const HP_BY_CLASS = { validator: 110, miner: 80, degen: 90, archivist: 100 };
+  const HP_BY_CLASS = { validator: 110, miner: 80, degen: 90, archivist: 100, dao_diplomat: 95 };
   const hp = HP_BY_CLASS[heroClass] || 100;
 
   room.players.push({

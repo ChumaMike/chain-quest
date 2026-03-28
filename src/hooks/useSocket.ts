@@ -142,8 +142,16 @@ export function useSocket() {
       });
     });
 
-    socket.on('battle:end', ({ rankings, bossDefeated }: { rankings: any[]; bossDefeated: boolean }) => {
+    socket.on('battle:end', ({ rankings, bossDefeated, rewards }: { rankings: any[]; bossDefeated: boolean; rewards?: Record<string, { xpGained: number; cqtGained: number; rank: number }> }) => {
       store.setRankings(rankings, bossDefeated);
+      // Normalize reward field names (server uses xpGained/cqtGained, client expects xp/cqt)
+      if (rewards) {
+        const normalized: Record<string, { xp: number; cqt: number }> = {};
+        for (const [id, r] of Object.entries(rewards)) {
+          normalized[id] = { xp: r.xpGained, cqt: r.cqtGained };
+        }
+        useMultiplayerStore.getState().setBattleRewards(normalized);
+      }
     });
 
     socket.on('battle:chat', (data: { displayName: string; heroClass: string; message: string }) => {

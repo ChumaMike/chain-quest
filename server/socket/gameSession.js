@@ -11,10 +11,11 @@ function getDB() {
 }
 
 const HERO_STATS = {
-  validator: { hp: 110, attack: 1.0, defense: 0.25 },
-  miner: { hp: 80, attack: 1.5, defense: 0.10 },
-  degen: { hp: 90, attack: 1.2, defense: 0.15 },
-  archivist: { hp: 100, attack: 1.0, defense: 0.20 },
+  validator:    { hp: 110, attack: 1.0,  defense: 0.25 },
+  miner:        { hp: 80,  attack: 1.5,  defense: 0.10 },
+  degen:        { hp: 90,  attack: 1.2,  defense: 0.15 },
+  archivist:    { hp: 100, attack: 1.0,  defense: 0.20 },
+  dao_diplomat: { hp: 95,  attack: 1.1,  defense: 0.15 },
 };
 
 class GameSession {
@@ -50,8 +51,9 @@ class GameSession {
   }
 
   getBossHP() {
-    const bossHPs = [0, 200, 250, 300, 350, 400, 450, 500];
-    return bossHPs[this.worldId] || 300;
+    // Boss HP matches GDD values from curriculum.ts
+    const world = WORLDS_DATA.find(w => w.id === this.worldId);
+    return world?.boss?.maxHP || 300;
   }
 
   start() {
@@ -90,7 +92,7 @@ class GameSession {
     this.questionStartTime = Date.now();
     const timeLimit = (q.timeLimitSec || 30) * 1000;
 
-    // Send question WITHOUT correct answer
+    // Send question WITHOUT correct answer (concept/damage included for UI display)
     this.io.to(this.code).emit('battle:question', {
       question: {
         id: q.id,
@@ -99,6 +101,9 @@ class GameSession {
         difficulty: q.difficulty,
         worldId: q.worldId,
         timeLimitSec: q.timeLimitSec || 30,
+        concept: q.concept || '',
+        damage: q.damage || 25,
+        // explanation intentionally omitted — sent only in battle:reveal
       },
       index: this.currentQuestionIndex,
       total: this.questions.length,

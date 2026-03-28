@@ -4,7 +4,7 @@
   "description": "CHAIN QUEST: Gamified blockchain learning RPG with pixel open world, multiplayer, and Sepolia token rewards",
   "scripts": {
     "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"node server/index.js\" \"vite\"",
-    "build": "tsc && vite build",
+    "build": "node scripts/generateServerData.js && tsc && vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
     "start": "NODE_ENV=production node server/index.js",

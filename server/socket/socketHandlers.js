@@ -5,8 +5,8 @@ const { verifyToken } = require('../auth');
 
 const activeSessions = new Map(); // roomCode → GameSession
 
-// Valid world IDs
-const VALID_WORLD_IDS = [1, 2, 3, 4, 5, 6, 7];
+// Valid world IDs (1–16)
+const VALID_WORLD_IDS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
 
 // Sanitize display names: trim, max 20 chars, strip HTML chars
 function sanitizeName(name) {
@@ -127,6 +127,7 @@ function initSocketHandlers(io) {
         return;
       }
       socket.data.displayName = cleanName;
+      socket.data.heroClass = heroClass;
       const room = roomManager.createRoom(socket.id, wid, cleanName, heroClass);
       socket.join(room.code);
       socket.emit('room:created', { code: room.code, room });
@@ -145,6 +146,7 @@ function initSocketHandlers(io) {
         return;
       }
       socket.data.displayName = cleanName;
+      socket.data.heroClass = heroClass;
       const result = roomManager.joinRoom(code.toUpperCase(), socket.id, cleanName, heroClass);
       if (result.error) {
         socket.emit('room:error', { message: result.error, code: result.code });
@@ -232,25 +234,35 @@ function initSocketHandlers(io) {
       const room = roomManager.getRoom(code);
       const session = activeSessions.get(code);
       if (!room || !session) return;
-      const player = room.players.find(p => p.displayName === socket.data.displayName);
+      // Match by userId (authenticated) or displayName+heroClass as fallback
+      const userId = socket.data.userId;
+      let player = userId
+        ? room.players.find(p => p.userId === userId)
+        : room.players.find(p => p.displayName === socket.data.displayName && p.heroClass === socket.data.heroClass);
       if (!player) return;
-      // Update player's socket ID
+      // Update player's socket ID to new connection
       player.id = socket.id;
       socket.join(code);
-      // Send full state snapshot
+      // Send full state snapshot with complete question data
       const currentQ = session.questions[session.currentQuestionIndex];
+      const elapsed = session.questionStartTime ? Math.floor((Date.now() - session.questionStartTime) / 1000) : 0;
+      const totalSec = currentQ ? (currentQ.timeLimitSec || 30) : 30;
       socket.emit('battle:state-sync', {
         phase: session.phase,
         bossHP: session.sharedBossHP,
         bossMaxHP: session.sharedBossMaxHP,
         players: room.players,
         questionIndex: session.currentQuestionIndex,
+        totalQuestions: session.questions.length,
+        timeRemaining: Math.max(0, totalSec - elapsed),
         currentQuestion: session.phase === 'question' && currentQ ? {
           id: currentQ.id,
           text: currentQ.text,
           options: currentQ.options,
           difficulty: currentQ.difficulty,
-          timeLimitSec: currentQ.timeLimitSec || 30,
+          timeLimitSec: totalSec,
+          concept: currentQ.concept || '',
+          damage: currentQ.damage || 25,
         } : null,
       });
     });
