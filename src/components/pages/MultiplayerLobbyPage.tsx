@@ -76,8 +76,8 @@ export default function MultiplayerLobbyPage() {
     navigate(`/multiplayer/room/${room.code}`);
   };
 
-  const myPlayer = room?.players.find(p => p.displayName === displayName);
-  const isHost = myPlayer?.isHost;
+  const myPlayer = room?.players.find(p => p.id === socket.socket.id);
+  const isHost = myPlayer?.isHost ?? room?.hostId === socket.socket.id;
   const allReady = room?.players.every(p => p.isReady) && (room?.players.length || 0) >= 2;
 
   if (room) {

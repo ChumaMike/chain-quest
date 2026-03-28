@@ -2,12 +2,19 @@ import Phaser from 'phaser';
 import { ZONE_CONFIGS, HUB_CONFIG, WORLD_SIZE, MINI_GAME_PORTALS, type ZoneConfig } from '../../data/worldZones';
 import { WORLDS } from '../../data/curriculum';
 
-const WORLD_COLORS = [0, 0x00d4ff, 0xffb800, 0x8b5cf6, 0x00ff88, 0xff0080, 0x0066ff, 0xff6b35];
+const WORLD_COLORS: Record<number, number> = {
+  0: 0x888888,
+  1: 0x00d4ff, 2: 0xffb800, 3: 0x8b5cf6, 4: 0x00ff88,
+  5: 0xff0080, 6: 0x0066ff, 7: 0xff6b35, 8: 0x00ffcc,
+  9: 0xff4400, 10: 0x3366ff, 11: 0xaa44ff, 12: 0xffcc00,
+  13: 0x00aaff, 14: 0xf59e0b, 15: 0xff00aa, 16: 0xffd700,
+};
 const HERO_COLORS: Record<string, number> = {
   validator: 0x00d4ff,
   miner: 0xffb800,
   degen: 0x00ff88,
   archivist: 0x8b5cf6,
+  dao_diplomat: 0xf59e0b,
 };
 
 interface RemotePlayerSprite {
@@ -368,8 +375,8 @@ export default class OpenWorldScene extends Phaser.Scene {
       if (Math.sqrt(dx * dx + dy * dy) < portal.radius * 0.8) {
         this.battleTriggerCooldown = 5000;
         this.cameras.main.flash(200, 139, 92, 246);
-        this.scene.launch(portal.sceneKey, { playerData: this.playerData });
-        this.scene.pause();
+        // Emit navigate event — React handles routing to /game/duel or /game/jumper
+        OpenWorldScene.events.emit('minigame:navigate', { sceneKey: portal.sceneKey });
         return;
       }
     }

@@ -24,7 +24,7 @@ export default function StudyGuidePage() {
               STUDY <span className="text-neon-cyan glow-cyan">GUIDE</span>
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              Everything you need to know to win every battle — questions, answers, and explanations for all 7 worlds.
+              Everything you need to know to win every battle — questions, answers, and explanations for all 16 worlds.
             </p>
           </div>
 

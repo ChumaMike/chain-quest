@@ -65,6 +65,19 @@ export default function PhaserGame({ playerData, completedWorlds, onBattleTrigge
       onNpcTalk?.(worldId);
     });
 
+    // Mini-game portal entered — navigate to React page
+    OpenWorldScene.events.on('minigame:navigate', ({ sceneKey }: { sceneKey: string }) => {
+      const routes: Record<string, string> = {
+        DuelScene:         '/game/duel',
+        JumperScene:       '/game/jumper',
+        BlockRacerScene:   '/game/block-racer',
+        HashPuzzleScene:   '/game/hash-puzzle',
+        NodeDefenderScene: '/game/node-defender',
+      };
+      const route = routes[sceneKey];
+      if (route) navigate(route);
+    });
+
     // Mini-game completion — award XP, CQT, and achievements
     OpenWorldScene.events.on('minigame:complete', ({ xpGained, cqtGained, scene, score, solved, wavesCleared }: { xpGained: number; cqtGained: number; scene?: string; score?: number; solved?: number; wavesCleared?: number }) => {
       if (xpGained > 0) useGameStore.getState().addXP(xpGained);

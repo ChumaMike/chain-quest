@@ -240,13 +240,19 @@ export default function OpenWorldPage() {
           <ProgressBar value={totalXP} max={xpToNext} color="#00d4ff" height={IS_MOBILE ? 4 : 6} />
         </div>
 
-        {/* Completed worlds */}
+        {/* Completed worlds — all 16 */}
         <div className="neon-border-purple bg-dark-900/80 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm">
-          <div className="font-orbitron text-xs text-neon-purple mb-1">WORLDS</div>
-          <div className="flex gap-1 flex-wrap">
-            {[1,2,3,4,5,6,7].map(w => (
-              <span key={w} className={`text-xs font-mono ${completedWorlds.includes(w) ? 'text-neon-green' : 'text-slate-700'}`}>
-                {completedWorlds.includes(w) ? '✓' : '·'}{w}
+          <div className="font-orbitron text-xs text-neon-purple mb-1">
+            WORLDS {completedWorlds.length}/16
+          </div>
+          <div className="flex gap-0.5 flex-wrap">
+            {Array.from({ length: 16 }, (_, i) => i + 1).map(w => (
+              <span
+                key={w}
+                title={`World ${w}`}
+                className={`text-xs font-mono leading-none ${completedWorlds.includes(w) ? 'text-neon-green' : 'text-slate-700'}`}
+              >
+                {completedWorlds.includes(w) ? '■' : '□'}
               </span>
             ))}
           </div>
