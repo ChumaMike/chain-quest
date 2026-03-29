@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
@@ -23,11 +23,12 @@ export default function OpenWorldPage() {
   const { completedWorlds, currentLevel, totalXP } = useGameStore();
   const { controlMode } = useSettingsStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const zoneSpawn = (location.state as any)?.zoneSpawn as { x: number; y: number } | undefined;
   const socket = useSocket();
   const [profile, setProfile] = useState<any>(null);
   const [battlePrompt, setBattlePrompt] = useState<{ worldId: number; isBoss: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
@@ -51,8 +52,8 @@ export default function OpenWorldPage() {
     if (!user || !token) return;
     apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => { setProfile(data.profile); setLoading(false); })
-      .catch(() => { setLoading(false); setLoadError(true); });
+      .then(data => { setProfile(data.profile || {}); setLoading(false); })
+      .catch(() => { setProfile({}); setLoading(false); });
   }, [user, token]);
 
   useEffect(() => {
@@ -162,24 +163,6 @@ export default function OpenWorldPage() {
     if (battlePrompt) navigate(`/battle/${battlePrompt.worldId}`);
   };
 
-  if (loadError) {
-    return (
-      <div className="min-h-screen bg-grid flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-3">⚠️</div>
-          <div className="font-orbitron text-red-400 text-sm mb-4">Failed to load world data</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-5 py-2 rounded font-orbitron text-xs font-bold"
-            style={{ background: '#00d4ff', color: '#04060f' }}
-          >
-            RETRY
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (loading || !profile) {
     return (
       <div className="min-h-screen bg-grid flex items-center justify-center">
@@ -199,8 +182,8 @@ export default function OpenWorldPage() {
     avatarColor2: profile.avatar_color_2 || '#8b5cf6',
     avatarStyle: profile.avatar_style || 0,
     level: currentLevel,
-    worldX: profile.world_x || 1600,
-    worldY: profile.world_y || 980,
+    worldX: zoneSpawn?.x ?? (profile.world_x || 1600),
+    worldY: zoneSpawn?.y ?? (profile.world_y || 980),
     hasGlow: (Array.isArray(profile.inventory) ? profile.inventory : JSON.parse(profile.inventory || '[]')).some((i: any) => i.id === 'neon_glow'),
   };
 

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { WORLDS } from '../../data/curriculum';
+import { ZONE_CONFIGS } from '../../data/worldZones';
 import ProgressBar from '../ui/ProgressBar';
 import PageWrapper from '../ui/PageWrapper';
 
@@ -22,7 +23,8 @@ export default function CampaignPage() {
       setTimeout(() => setLockedMsg(null), 3000);
       return;
     }
-    navigate(`/battle/${worldId}`);
+    const zone = ZONE_CONFIGS.find(z => z.worldId === worldId);
+    navigate('/world', { state: { zoneSpawn: { x: zone?.spawnX ?? 1600, y: zone?.spawnY ?? 980 } } });
   };
 
   return (
@@ -134,7 +136,14 @@ export default function CampaignPage() {
                     {/* Emoji + name */}
                     <div className="text-2xl mb-1">{world.emoji}</div>
                     <div className="font-orbitron font-bold text-sm text-white leading-tight mb-0.5">{world.name}</div>
-                    <div className="font-mono text-xs mb-3" style={{ color: world.color }}>{world.topic}</div>
+                    <div className="font-mono text-xs mb-2" style={{ color: world.color }}>{world.topic}</div>
+
+                    {/* Zone contents hint */}
+                    {!isLocked && (
+                      <div className="font-mono text-xs text-slate-600 mb-2">
+                        enemies · mini-games · boss
+                      </div>
+                    )}
 
                     {/* Stars */}
                     <div className="flex gap-0.5 mb-3">
@@ -150,10 +159,10 @@ export default function CampaignPage() {
                       </div>
                     ) : isCompleted ? (
                       <button
-                        onClick={(e) => { e.stopPropagation(); navigate(`/battle/${world.id}`); }}
+                        onClick={(e) => { e.stopPropagation(); handleEnter(world.id, world.unlockLevel); }}
                         className="w-full py-1.5 rounded font-orbitron text-xs border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all"
                       >
-                        REPLAY
+                        ↩ REVISIT
                       </button>
                     ) : (
                       <button
@@ -161,7 +170,7 @@ export default function CampaignPage() {
                         className="w-full py-1.5 rounded font-orbitron text-xs font-bold transition-all"
                         style={{ background: world.color + '22', border: `1px solid ${world.color}44`, color: world.color }}
                       >
-                        ▶ ENTER
+                        ▶ EXPLORE
                       </button>
                     )}
                   </div>
