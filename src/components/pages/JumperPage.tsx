@@ -72,7 +72,7 @@ export default function JumperPage() {
       gameRef.current.destroy(true);
       gameRef.current = null;
     }
-    navigate('/world');
+    navigate('/campaign');
   };
 
   if (result) {
@@ -128,7 +128,7 @@ export default function JumperPage() {
               ))}
             </div>
             <div className="flex gap-3 justify-center">
-              <Button onClick={() => navigate('/world')} variant="ghost">← BACK</Button>
+              <Button onClick={() => navigate('/campaign')} variant="ghost">← BACK</Button>
               <Button onClick={startGame} variant="neon" disabled={!profile}>
                 JUMP IN
               </Button>

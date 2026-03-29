@@ -45,7 +45,7 @@ export default function AvatarCreatorPage() {
           avatar_color_2: color2,
         }),
       });
-      navigate('/world');
+      navigate('/campaign');
     } catch {
       setSaving(false);
       setSaveError('Failed to save avatar. Please try again.');

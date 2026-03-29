@@ -6,6 +6,7 @@ import LandingPage from './components/pages/LandingPage';
 import AuthPage from './components/pages/AuthPage';
 import AvatarCreatorPage from './components/pages/AvatarCreatorPage';
 import OpenWorldPage from './components/pages/OpenWorldPage';
+import CampaignPage from './components/pages/CampaignPage';
 import BattlePage from './components/pages/BattlePage';
 import MultiplayerLobbyPage from './components/pages/MultiplayerLobbyPage';
 import MultiplayerBattlePage from './components/pages/MultiplayerBattlePage';
@@ -35,7 +36,8 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/avatar" element={<ProtectedRoute><AvatarCreatorPage /></ProtectedRoute>} />
-            <Route path="/world" element={<ProtectedRoute><OpenWorldPage /></ProtectedRoute>} />
+            <Route path="/campaign" element={<ProtectedRoute><CampaignPage /></ProtectedRoute>} />
+            <Route path="/world" element={<Navigate to="/campaign" replace />} />
             <Route path="/battle/:worldId" element={<ProtectedRoute><BattlePage /></ProtectedRoute>} />
             <Route path="/multiplayer" element={<ProtectedRoute><MultiplayerLobbyPage /></ProtectedRoute>} />
             <Route path="/multiplayer/room/:code" element={<ProtectedRoute><MultiplayerBattlePage /></ProtectedRoute>} />

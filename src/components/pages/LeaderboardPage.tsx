@@ -98,8 +98,8 @@ export default function LeaderboardPage() {
                 <div className="text-4xl mb-3">📭</div>
                 <div className="text-slate-600 font-orbitron text-xs">NO ENTRIES YET</div>
                 <div className="text-slate-700 text-xs mt-1 font-mono">Be the first to complete this world!</div>
-                <button onClick={() => navigate('/world')} className="mt-4 text-neon-cyan text-xs font-orbitron hover:underline">
-                  → ENTER THE WORLD
+                <button onClick={() => navigate('/campaign')} className="mt-4 text-neon-cyan text-xs font-orbitron hover:underline">
+                  → ENTER CAMPAIGN
                 </button>
               </div>
             ) : (
@@ -165,8 +165,8 @@ export default function LeaderboardPage() {
 
           {/* CTA */}
           <div className="text-center mt-8">
-            <Button onClick={() => navigate('/world')} variant="neon" size="lg">
-              ⚔ ENTER THE WORLD
+            <Button onClick={() => navigate('/campaign')} variant="neon" size="lg">
+              ⚔ ENTER CAMPAIGN
             </Button>
           </div>
         </div>

@@ -61,10 +61,10 @@ export default function LandingPage() {
               <Button
                 size="lg"
                 variant="neon"
-                onClick={() => navigate(token ? '/world' : '/auth')}
+                onClick={() => navigate(token ? '/campaign' : '/auth')}
                 className="w-full sm:w-auto"
               >
-                ⚡ {token ? 'ENTER THE WORLD' : 'START YOUR JOURNEY'}
+                ⚡ {token ? 'ENTER CAMPAIGN' : 'START YOUR JOURNEY'}
               </Button>
               <Button
                 size="lg"
@@ -151,7 +151,7 @@ export default function LandingPage() {
               READY TO <span className="text-neon-cyan glow-cyan">DECENTRALIZE</span>?
             </h2>
             <p className="text-slate-400 mb-8 text-sm sm:text-base">Join the fight against the Centralized Empire.</p>
-            <Button size="lg" variant="neon" onClick={() => navigate(token ? '/world' : '/auth')} className="w-full sm:w-auto">
+            <Button size="lg" variant="neon" onClick={() => navigate(token ? '/campaign' : '/auth')} className="w-full sm:w-auto">
               ⚡ BEGIN NOW — IT'S FREE
             </Button>
           </motion.div>

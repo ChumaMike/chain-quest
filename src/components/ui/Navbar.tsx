@@ -6,7 +6,7 @@ import { useWeb3 } from '../../hooks/useWeb3';
 import { toggleMute, isMuted, initAudio } from '../../game/audio/SoundManager';
 
 const NAV_LINKS = [
-  { path: '/world', label: 'World', icon: '🌐' },
+  { path: '/campaign', label: 'Campaign', icon: '🗺️' },
   { path: '/study', label: 'Study', icon: '📚' },
   { path: '/multiplayer', label: 'Multiplayer', icon: '⚔️' },
   { path: '/leaderboard', label: 'Leaderboard', icon: '🏆' },
@@ -43,7 +43,7 @@ export default function Navbar() {
         )}
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           {/* Logo */}
-          <Link to="/world" className="flex items-center gap-2 group" onClick={() => setMenuOpen(false)}>
+          <Link to="/campaign" className="flex items-center gap-2 group" onClick={() => setMenuOpen(false)}>
             <span className="text-neon-cyan text-xl">⚡</span>
             <span className="font-orbitron font-bold text-sm text-neon-cyan tracking-widest group-hover:glow-cyan transition-all">
               CHAIN QUEST

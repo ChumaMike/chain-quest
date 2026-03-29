@@ -512,7 +512,7 @@ export default function BattlePage() {
                 ✓ {claimResult.simulated ? 'Simulated' : 'TX confirmed'}: {claimResult.txHash?.slice(0, 20)}...
               </div>
             )}
-            <Button onClick={() => navigate('/world')} variant="ghost" className="w-full">← RETURN TO WORLD</Button>
+            <Button onClick={() => navigate('/campaign')} variant="ghost" className="w-full">← RETURN TO CAMPAIGN</Button>
           </div>
         </Modal>
 
@@ -524,7 +524,7 @@ export default function BattlePage() {
             <p className="text-slate-400 mb-6">Your HP hit zero. The {world.boss.name} laughs...</p>
             <div className="flex gap-3">
               <Button onClick={() => { setShowDefeat(false); startBattle(wId, heroClass, 'solo'); }} variant="primary" className="flex-1">⚡ RETRY</Button>
-              <Button onClick={() => navigate('/world')} variant="ghost" className="flex-1">← RETREAT</Button>
+              <Button onClick={() => navigate('/campaign')} variant="ghost" className="flex-1">← RETREAT</Button>
             </div>
           </div>
         </Modal>

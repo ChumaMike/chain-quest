@@ -418,7 +418,7 @@ export default function MultiplayerBattlePage() {
 
             <div className="flex gap-3">
               <Button onClick={() => navigate('/multiplayer')} variant="neon" className="flex-1">⚔ REMATCH</Button>
-              <Button onClick={() => navigate('/world')} variant="ghost" className="flex-1">← WORLD</Button>
+              <Button onClick={() => navigate('/campaign')} variant="ghost" className="flex-1">← CAMPAIGN</Button>
             </div>
           </div>
         </Modal>
