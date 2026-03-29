@@ -53,15 +53,22 @@ router.get('/me', authMiddleware, (req, res) => {
   res.json({ user: { id: user.id, username: user.username, wallet_address: user.wallet_address } });
 });
 
-// PATCH /api/auth/wallet — link wallet address
+// PATCH /api/auth/wallet — link wallet address + drip Sepolia ETH on first link
 router.patch('/wallet', authMiddleware, (req, res) => {
   try {
     const { walletAddress } = req.body;
     if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
       return res.status(400).json({ error: 'Invalid wallet address' });
     }
+    const { sendEth } = require('../wallet');
+    const existing = userHelpers.findById(req.user.userId);
+    const isNewWallet = !existing?.wallet_address;
     userHelpers.updateWallet(req.user.userId, walletAddress);
-    res.json({ success: true, walletAddress });
+    // Fire-and-forget: drip 0.005 Sepolia ETH so the player can pay gas fees
+    if (isNewWallet) {
+      sendEth(walletAddress, 0.005).catch(() => {});
+    }
+    res.json({ success: true, walletAddress, ethDripped: isNewWallet });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

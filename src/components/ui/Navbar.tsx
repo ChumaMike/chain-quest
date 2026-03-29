@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
@@ -15,11 +15,14 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const { user, logout } = useAuthStore();
-  const { isConnected, walletAddress, cqtBalance, connectWallet } = useWeb3();
+  const { isConnected, walletAddress, cqtBalance, connectWallet, error: web3Error } = useWeb3();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [muted, setMuted] = useState(isMuted());
+  const [walletErr, setWalletErr] = useState<string | null>(null);
+
+  useEffect(() => { if (web3Error) setWalletErr(web3Error); }, [web3Error]);
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
@@ -32,6 +35,12 @@ export default function Navbar() {
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-800/95 border-b border-neon-cyan/10 backdrop-blur-sm">
+        {walletErr && (
+          <div className="absolute top-14 right-4 z-50 bg-red-900/90 border border-red-500/40 text-red-300 text-xs font-mono px-3 py-2 rounded max-w-xs flex items-start gap-2">
+            <span>⚠ {walletErr}</span>
+            <button onClick={() => setWalletErr(null)} className="text-red-400 hover:text-white shrink-0">✕</button>
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           {/* Logo */}
           <Link to="/world" className="flex items-center gap-2 group" onClick={() => setMenuOpen(false)}>

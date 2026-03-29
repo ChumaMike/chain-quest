@@ -11,9 +11,11 @@ if (!process.env.JWT_SECRET) {
   console.error('⚠️  WARNING: JWT_SECRET is not set — auth endpoints will fail until it is configured.');
 }
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-  : ['http://localhost:5173', 'http://localhost:3001'];
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? true // Railway serves frontend same-origin — allow all
+  : (process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+      : ['http://localhost:5173', 'http://localhost:3001']);
 
 const { initDB } = require('./db');
 const authRoutes = require('./routes/authRoutes');

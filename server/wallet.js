@@ -53,6 +53,25 @@ async function mintTokens(toAddress, amount) {
   }
 }
 
+async function sendEth(toAddress, amountEth) {
+  if (!minterWallet) {
+    console.log('[Faucet] Simulated ETH drip to', toAddress);
+    return { success: true, simulated: true };
+  }
+  try {
+    const tx = await minterWallet.sendTransaction({
+      to: toAddress,
+      value: ethers.parseEther(String(amountEth)),
+    });
+    const receipt = await tx.wait();
+    console.log(`[Faucet] Sent ${amountEth} ETH to ${toAddress} — ${receipt.hash}`);
+    return { success: true, txHash: receipt.hash, simulated: false };
+  } catch (err) {
+    console.error('[Faucet] ETH drip failed:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 async function getBalance(address) {
   if (!tokenContract) return '0';
   try {
@@ -63,4 +82,4 @@ async function getBalance(address) {
   }
 }
 
-module.exports = { initWallet, mintTokens, getBalance };
+module.exports = { initWallet, mintTokens, sendEth, getBalance };
