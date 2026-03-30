@@ -17,6 +17,21 @@ export default function CampaignPage() {
   const xpToNext = Math.floor(100 * Math.pow(currentLevel, 1.4));
   const totalStars = Object.values(worldProgress).reduce((sum, p) => sum + (p?.stars ?? 0), 0);
 
+  const WORLD_MAP_SIZE = { width: 3200, height: 4000 };
+  const worldNodes = WORLDS.map(world => {
+    const zone = ZONE_CONFIGS.find(z => z.worldId === world.id);
+    const x = zone ? ((zone.x + zone.width / 2) / WORLD_MAP_SIZE.width) * 100 : 50;
+    const y = zone ? ((zone.y + zone.height / 2) / WORLD_MAP_SIZE.height) * 100 : 50;
+    return { ...world, x, y };
+  });
+  const worldEdges = worldNodes
+    .sort((a, b) => a.id - b.id)
+    .slice(0, -1)
+    .map((node, idx, arr) => ({
+      from: node,
+      to: arr[idx + 1],
+    }));
+
   const handleEnter = (worldId: number, unlockLevel: number) => {
     if (unlockLevel > currentLevel) {
       setLockedMsg(`Requires Level ${unlockLevel} — you are Level ${currentLevel}`);
@@ -88,96 +103,59 @@ export default function CampaignPage() {
             <ProgressBar value={completedWorlds.length} max={16} color="#00ff88" height={8} />
           </div>
 
-          {/* World grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-            {WORLDS.map((world, idx) => {
+          {/* Web-style campaign map */}
+          <div className="campaign-web-map relative overflow-hidden rounded-3xl border border-neon-cyan/20 bg-dark-800/40 p-4 mb-8">
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {worldEdges.map((edge, idx) => {
+                const isFromComplete = completedWorlds.includes(edge.from.id);
+                const isToComplete = completedWorlds.includes(edge.to.id);
+                return (
+                  <line
+                    key={`line-${idx}`}
+                    x1={edge.from.x}
+                    y1={edge.from.y}
+                    x2={edge.to.x}
+                    y2={edge.to.y}
+                    stroke={isFromComplete && isToComplete ? '#00ff88' : '#00d4ff'}
+                    strokeWidth="0.35"
+                    strokeLinecap="round"
+                    className="web-connection"
+                  />
+                );
+              })}
+            </svg>
+
+            {worldNodes.map(world => {
               const isCompleted = completedWorlds.includes(world.id);
               const isLocked = world.unlockLevel > currentLevel;
-              const isNext = !isLocked && !isCompleted && (idx === 0 || completedWorlds.includes(world.id - 1) || completedWorlds.length >= idx);
+              const isNext = !isLocked && !isCompleted && (world.id === 1 || completedWorlds.includes(world.id - 1));
               const progress = worldProgress[world.id];
               const stars = progress?.stars ?? 0;
 
-              let borderColor = 'border-white/10';
-              let glowStyle = {};
-              if (isCompleted) { borderColor = 'border-neon-green/40'; glowStyle = { boxShadow: '0 0 12px rgba(0,255,136,0.1)' }; }
-              else if (isNext) { borderColor = 'border-neon-cyan/40'; glowStyle = { boxShadow: '0 0 12px rgba(0,212,255,0.1)' }; }
-              else if (!isLocked) { borderColor = 'border-white/15'; }
+              const nodeState = isCompleted ? 'completed' : isNext ? 'next' : isLocked ? 'locked' : 'unlocked';
 
               return (
-                <motion.div
-                  key={world.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.03 }}
-                  className={`relative bg-dark-800/70 backdrop-blur-sm rounded-xl border ${borderColor} overflow-hidden transition-all ${isLocked ? 'opacity-40' : 'hover:scale-[1.02] hover:border-opacity-80 cursor-pointer'}`}
-                  style={glowStyle}
+                <button
+                  key={`node-${world.id}`}
                   onClick={() => !isLocked && handleEnter(world.id, world.unlockLevel)}
+                  className={`world-node absolute -translate-x-1/2 -translate-y-1/2 ${nodeState}`}
+                  style={{ top: `${world.y}%`, left: `${world.x}%` }}
                 >
-                  {/* World number badge */}
-                  <div className="absolute top-3 left-3 w-7 h-7 rounded-full flex items-center justify-center font-orbitron text-xs font-black"
-                    style={{ background: isCompleted ? '#00ff8820' : '#ffffff10', color: isCompleted ? '#00ff88' : '#888', border: `1px solid ${isCompleted ? '#00ff8840' : '#ffffff20'}` }}>
-                    {world.id}
+                  <div className="node-ring" />
+                  <div className="node-core" style={{ backgroundColor: world.color }}>
+                    <span className="text-lg">{world.emoji}</span>
                   </div>
-
-                  {/* Completion badge */}
-                  {isCompleted && (
-                    <div className="absolute top-3 right-3 font-orbitron text-xs text-neon-green">✓</div>
-                  )}
-                  {isLocked && (
-                    <div className="absolute top-3 right-3 text-sm">🔒</div>
-                  )}
-                  {isNext && !isCompleted && (
-                    <div className="absolute top-3 right-3">
-                      <span className="w-2 h-2 rounded-full bg-neon-cyan animate-pulse inline-block" />
-                    </div>
-                  )}
-
-                  <div className="px-4 pb-4 pt-12">
-                    {/* Emoji + name */}
-                    <div className="text-2xl mb-1">{world.emoji}</div>
-                    <div className="font-orbitron font-bold text-sm text-white leading-tight mb-0.5">{world.name}</div>
-                    <div className="font-mono text-xs mb-2" style={{ color: world.color }}>{world.topic}</div>
-
-                    {/* Zone contents hint */}
-                    {!isLocked && (
-                      <div className="font-mono text-xs text-slate-600 mb-2">
-                        enemies · mini-games · boss
-                      </div>
-                    )}
-
-                    {/* Stars */}
-                    <div className="flex gap-0.5 mb-3">
+                  <div className="node-label">
+                    <div className="font-orbitron text-[10px] leading-none">{world.name}</div>
+                    <div className="font-mono text-[10px]">{world.topic}</div>
+                    <div className="flex gap-0.5 justify-center mt-1">
                       {[1, 2, 3].map(s => (
-                        <span key={s} className={`text-sm ${s <= stars ? 'text-yellow-400' : 'text-slate-800'}`}>★</span>
+                        <span key={s} className={`text-[9px] ${s <= stars ? 'text-yellow-400' : 'text-slate-700'}`}>★</span>
                       ))}
                     </div>
-
-                    {/* Status / action */}
-                    {isLocked ? (
-                      <div className="font-orbitron text-xs text-slate-600">
-                        LVL {world.unlockLevel} required
-                      </div>
-                    ) : isCompleted ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleEnter(world.id, world.unlockLevel); }}
-                        className="w-full py-1.5 rounded font-orbitron text-xs border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all"
-                      >
-                        ↩ REVISIT
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleEnter(world.id, world.unlockLevel); }}
-                        className="w-full py-1.5 rounded font-orbitron text-xs font-bold transition-all"
-                        style={{ background: world.color + '22', border: `1px solid ${world.color}44`, color: world.color }}
-                      >
-                        ▶ EXPLORE
-                      </button>
-                    )}
                   </div>
-
-                  {/* Bottom accent line */}
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: isCompleted ? '#00ff8840' : isNext ? '#00d4ff30' : 'transparent' }} />
-                </motion.div>
+                  {isLocked && <div className="node-lock">🔒</div>}
+                </button>
               );
             })}
           </div>

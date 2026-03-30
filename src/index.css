@@ -76,7 +76,61 @@ html, body {
 .neon-border-pink   { border: 1px solid #ff008044; box-shadow: 0 0 15px #ff008022, inset 0 0 15px #ff008011; }
 .neon-border-orange { border: 1px solid #ff6b3544; box-shadow: 0 0 15px #ff6b3522, inset 0 0 15px #ff6b3511; }
 .neon-border-amber  { border: 1px solid #ffb80044; box-shadow: 0 0 15px #ffb80022, inset 0 0 15px #ffb80011; }
-
+/* ── Campaign web map ───────────────────────────────────── */
+.campaign-web-map {
+  min-height: 420px;
+  background: radial-gradient(circle at 35% 20%, rgba(0,212,255,0.14), transparent 34%),
+              radial-gradient(circle at 70% 80%, rgba(0,255,136,0.1), transparent 38%),
+              linear-gradient(135deg, rgba(8,12,24,0.8), rgba(4,6,15,0.9));
+  border-radius: 1.25rem;
+  box-shadow: 0 0 32px rgba(0, 212, 255, 0.15), inset 0 0 20px rgba(0, 255, 136, 0.09);
+}
+.web-connection {
+  stroke-dasharray: 1.2 1.2;
+  animation: drawWeb 3s infinite ease-in-out;
+  opacity: 0.75;
+}
+@keyframes drawWeb {
+  0%   { stroke-dashoffset: 6; }
+  100% { stroke-dashoffset: 0; }
+}
+.world-node {
+  width: 82px;
+  text-align: center;
+  transition: transform 0.25s ease, filter 0.25s ease;
+  cursor: pointer;
+}
+.world-node:hover { transform: scale(1.05); }
+.world-node .node-ring {
+  position: absolute;
+  inset: -10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.22);
+  filter: blur(0.4px);
+}
+.world-node .node-core {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.35);
+}
+.world-node .node-label {
+  margin-top: 45px;
+  color: #ebeef8;
+}
+.world-node .node-lock {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 0.7rem;
+}
+.world-node.completed .node-core { box-shadow: 0 0 14px rgba(0,255,136,0.65); }
+.world-node.next .node-core { box-shadow: 0 0 14px rgba(0,212,255,0.65); }
+.world-node.locked .node-core { box-shadow: 0 0 8px rgba(115,123,137,0.4); filter: grayscale(0.7); }
+.world-node.unlocked .node-core { box-shadow: 0 0 12px rgba(0,176,255,0.45); }
 /* ── HP Bar ──────────────────────────────────────────────── */
 .hp-bar { transition: width 0.4s ease; }
 .hp-bar.critical { animation: hpFlash 0.5s ease-in-out infinite; }
