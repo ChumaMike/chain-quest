@@ -177,11 +177,12 @@ export default function BattlePage() {
     }
 
     setTimeout(() => {
-      if (battle.playerHP - (result.damageTaken || 0) <= 0 && !result.correct) {
+      const current = useGameStore.getState().battle;
+      if (current.playerHP <= 0) {
         setShowDefeat(true);
         return;
       }
-      if (battle.bossHP - (result.damageDealt || 0) <= 0) {
+      if (current.bossHP <= 0) {
         finishWorld(result.correct);
         return;
       }

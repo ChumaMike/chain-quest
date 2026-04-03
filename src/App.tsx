@@ -37,7 +37,7 @@ export default function App() {
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/avatar" element={<ProtectedRoute><AvatarCreatorPage /></ProtectedRoute>} />
             <Route path="/campaign" element={<ProtectedRoute><CampaignPage /></ProtectedRoute>} />
-            <Route path="/world" element={<Navigate to="/campaign" replace />} />
+            <Route path="/world" element={<ProtectedRoute><OpenWorldPage /></ProtectedRoute>} />
             <Route path="/battle/:worldId" element={<ProtectedRoute><BattlePage /></ProtectedRoute>} />
             <Route path="/multiplayer" element={<ProtectedRoute><MultiplayerLobbyPage /></ProtectedRoute>} />
             <Route path="/multiplayer/room/:code" element={<ProtectedRoute><MultiplayerBattlePage /></ProtectedRoute>} />
