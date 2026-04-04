@@ -179,17 +179,17 @@ export default function CampaignPage() {
                             }}
                           >
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-base">{isLocked ? '❓' : world.boss.emoji}</span>
+                              <span className="text-base">{isLocked ? '❓' : (world.boss?.emoji ?? '👾')}</span>
                               <span className="font-orbitron text-xs font-bold" style={{ color: isLocked ? '#555' : world.color }}>
-                                {isLocked ? '???' : world.boss.name}
+                                {isLocked ? '???' : (world.boss?.name ?? 'Unknown')}
                               </span>
                             </div>
                             <div className="font-mono text-xs text-slate-600">
-                              {isLocked ? 'Unlock to reveal' : world.boss.title}
+                              {isLocked ? 'Unlock to reveal' : (world.boss?.title ?? '')}
                             </div>
                             {/* Boss lore on hover */}
                             <AnimatePresence>
-                              {isHovered && !isLocked && (
+                              {isHovered && !isLocked && world.boss?.lore && (
                                 <motion.div
                                   initial={{ opacity: 0, height: 0 }}
                                   animate={{ opacity: 1, height: 'auto' }}

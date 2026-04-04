@@ -67,20 +67,19 @@ export default function BattlePage() {
   useEffect(() => {
     if (!user || !token) return;
     setBattlePhase('intro');
+    setIntroStage(0);
     apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
         const hc = data.profile?.hero_class || 'validator';
         setHeroClass(hc);
         setProfile(data.profile);
-        // Sync inventory effects to store
         try {
           const inv = data.profile?.inventory ? JSON.parse(data.profile.inventory) : [];
           const hasXPBoost = inv.some((i: any) => i.id === 'xp_boost' && i.quantity > 0);
           const hintScrolls = inv.filter((i: any) => i.id === 'hint_scroll').reduce((s: number, i: any) => s + (i.quantity || 1), 0);
           useGameStore.getState().setXPBoost(hasXPBoost);
           if (hintScrolls > 0 && hc !== 'archivist') {
-            // Non-archivists can also use hints if they have scrolls
             useGameStore.setState({ hintsRemaining: hintScrolls });
           }
         } catch {}
@@ -94,13 +93,18 @@ export default function BattlePage() {
           setBattleInventory(items);
         } catch {}
         (useGameStore.getState().battle as any)._heroClass = hc;
+      })
+      .catch(() => {
+        // If profile fetch fails (e.g. auth issue), start battle with defaults
+        startBattle(wId, heroClass, 'solo');
       });
     return () => resetBattle();
   }, [wId]);
 
-  // Auto-advance intro stages: 0 → boss arrival (2.5s) → 1 → lore (3.5s) → 2 → manual
+  // Auto-advance intro stages only AFTER the battle has loaded (phase !== 'idle')
+  // This prevents the cinematic from skipping during the loading spinner
   useEffect(() => {
-    if (battlePhase !== 'intro') return;
+    if (battlePhase !== 'intro' || battle.phase === 'idle') return;
     if (introStage === 0) {
       const t = setTimeout(() => setIntroStage(1), 2500);
       return () => clearTimeout(t);
@@ -109,7 +113,7 @@ export default function BattlePage() {
       const t = setTimeout(() => setIntroStage(2), 3500);
       return () => clearTimeout(t);
     }
-  }, [battlePhase, introStage]);
+  }, [battlePhase, introStage, battle.phase]);
 
   const addPopup = useCallback((text: string, color: string) => {
     const id = popupId.current++;
