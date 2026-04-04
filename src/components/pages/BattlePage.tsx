@@ -65,39 +65,42 @@ export default function BattlePage() {
   const wrongConsecRef = useRef(0);
 
   useEffect(() => {
-    if (!user || !token) return;
+    // Start battle immediately with defaults — no waiting for async
     setBattlePhase('intro');
     setIntroStage(0);
-    apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => {
-        const hc = data.profile?.hero_class || 'validator';
-        setHeroClass(hc);
-        setProfile(data.profile);
-        try {
-          const inv = data.profile?.inventory ? JSON.parse(data.profile.inventory) : [];
-          const hasXPBoost = inv.some((i: any) => i.id === 'xp_boost' && i.quantity > 0);
-          const hintScrolls = inv.filter((i: any) => i.id === 'hint_scroll').reduce((s: number, i: any) => s + (i.quantity || 1), 0);
-          useGameStore.getState().setXPBoost(hasXPBoost);
-          if (hintScrolls > 0 && hc !== 'archivist') {
-            useGameStore.setState({ hintsRemaining: hintScrolls });
+    startBattle(wId, 'validator', 'solo');
+
+    // Then try to load profile and restart with correct hero class if different
+    if (user && token) {
+      apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          const hc = data.profile?.hero_class || 'validator';
+          setHeroClass(hc);
+          setProfile(data.profile);
+          try {
+            const inv = data.profile?.inventory ? JSON.parse(data.profile.inventory) : [];
+            const hasXPBoost = inv.some((i: any) => i.id === 'xp_boost' && i.quantity > 0);
+            const hintScrolls = inv.filter((i: any) => i.id === 'hint_scroll').reduce((s: number, i: any) => s + (i.quantity || 1), 0);
+            useGameStore.getState().setXPBoost(hasXPBoost);
+            if (hintScrolls > 0 && hc !== 'archivist') {
+              useGameStore.setState({ hintsRemaining: hintScrolls });
+            }
+            const items = ['hp_potion', 'time_freeze'].map(id => ({
+              id,
+              qty: inv.filter((i: any) => i.id === id).reduce((s: number, i: any) => s + (i.quantity || 1), 0),
+            })).filter(i => i.qty > 0);
+            setBattleInventory(items);
+          } catch {}
+          // Restart with correct hero class if it differs from default
+          if (hc !== 'validator') {
+            startBattle(wId, hc, 'solo');
+            setIntroStage(0);
           }
-        } catch {}
-        startBattle(wId, hc, 'solo');
-        try {
-          const inv = data.profile?.inventory ? JSON.parse(data.profile.inventory) : [];
-          const items = ['hp_potion', 'time_freeze'].map(id => ({
-            id,
-            qty: inv.filter((i: any) => i.id === id).reduce((s: number, i: any) => s + (i.quantity || 1), 0),
-          })).filter(i => i.qty > 0);
-          setBattleInventory(items);
-        } catch {}
-        (useGameStore.getState().battle as any)._heroClass = hc;
-      })
-      .catch(() => {
-        // If profile fetch fails (e.g. auth issue), start battle with defaults
-        startBattle(wId, heroClass, 'solo');
-      });
+          (useGameStore.getState().battle as any)._heroClass = hc;
+        })
+        .catch(() => {});
+    }
     return () => resetBattle();
   }, [wId]);
 
