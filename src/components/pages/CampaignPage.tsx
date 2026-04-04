@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { WORLDS } from '../../data/curriculum';
-import { ZONE_CONFIGS } from '../../data/worldZones';
+import { TIER_INFO, KARABO_BOSS_DEFEAT } from '../../data/karabo';
 import ProgressBar from '../ui/ProgressBar';
 import PageWrapper from '../ui/PageWrapper';
 
@@ -13,24 +13,10 @@ export default function CampaignPage() {
   const { user } = useAuthStore();
   const { completedWorlds, currentLevel, totalXP, worldProgress } = useGameStore();
   const [lockedMsg, setLockedMsg] = useState<string | null>(null);
+  const [hoveredWorld, setHoveredWorld] = useState<number | null>(null);
 
   const xpToNext = Math.floor(100 * Math.pow(currentLevel, 1.4));
   const totalStars = Object.values(worldProgress).reduce((sum, p) => sum + (p?.stars ?? 0), 0);
-
-  const WORLD_MAP_SIZE = { width: 3200, height: 4000 };
-  const worldNodes = WORLDS.map(world => {
-    const zone = ZONE_CONFIGS.find(z => z.worldId === world.id);
-    const x = zone ? ((zone.x + zone.width / 2) / WORLD_MAP_SIZE.width) * 100 : 50;
-    const y = zone ? ((zone.y + zone.height / 2) / WORLD_MAP_SIZE.height) * 100 : 50;
-    return { ...world, x, y };
-  });
-  const worldEdges = worldNodes
-    .sort((a, b) => a.id - b.id)
-    .slice(0, -1)
-    .map((node, idx, arr) => ({
-      from: node,
-      to: arr[idx + 1],
-    }));
 
   const handleEnter = (worldId: number, unlockLevel: number) => {
     if (unlockLevel > currentLevel) {
@@ -38,14 +24,13 @@ export default function CampaignPage() {
       setTimeout(() => setLockedMsg(null), 3000);
       return;
     }
-    const zone = ZONE_CONFIGS.find(z => z.worldId === worldId);
-    navigate('/world', { state: { zoneSpawn: { x: zone?.spawnX ?? 1600, y: zone?.spawnY ?? 980 } } });
+    navigate(`/battle/${worldId}`);
   };
 
   return (
     <PageWrapper>
-      <div className="min-h-screen bg-grid pt-16 pb-12 px-4">
-        <div className="max-w-6xl mx-auto">
+      <div className="min-h-screen bg-grid pt-16 pb-16 px-4">
+        <div className="max-w-5xl mx-auto">
 
           {/* Header */}
           <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -95,7 +80,7 @@ export default function CampaignPage() {
           </div>
 
           {/* Campaign progress */}
-          <div className="mb-4">
+          <div className="mb-10">
             <div className="flex items-center justify-between mb-2">
               <span className="font-orbitron text-xs text-slate-400">CAMPAIGN PROGRESS</span>
               <span className="font-orbitron text-xs text-neon-green">{Math.round((completedWorlds.length / 16) * 100)}%</span>
@@ -103,62 +88,173 @@ export default function CampaignPage() {
             <ProgressBar value={completedWorlds.length} max={16} color="#00ff88" height={8} />
           </div>
 
-          {/* Web-style campaign map */}
-          <div className="campaign-web-map relative overflow-hidden rounded-3xl border border-neon-cyan/20 bg-dark-800/40 p-4 mb-8">
-            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {worldEdges.map((edge, idx) => {
-                const isFromComplete = completedWorlds.includes(edge.from.id);
-                const isToComplete = completedWorlds.includes(edge.to.id);
-                return (
-                  <line
-                    key={`line-${idx}`}
-                    x1={edge.from.x}
-                    y1={edge.from.y}
-                    x2={edge.to.x}
-                    y2={edge.to.y}
-                    stroke={isFromComplete && isToComplete ? '#00ff88' : '#00d4ff'}
-                    strokeWidth="0.35"
-                    strokeLinecap="round"
-                    className="web-connection"
-                  />
-                );
-              })}
-            </svg>
+          {/* Tier sections */}
+          {TIER_INFO.map((tier) => {
+            const tierWorlds = WORLDS.filter(w => tier.worlds.includes(w.id));
+            const tierCompleted = tierWorlds.filter(w => completedWorlds.includes(w.id)).length;
+            const tierUnlocked = tierWorlds.some(w => w.unlockLevel <= currentLevel);
 
-            {worldNodes.map(world => {
-              const isCompleted = completedWorlds.includes(world.id);
-              const isLocked = world.unlockLevel > currentLevel;
-              const isNext = !isLocked && !isCompleted && (world.id === 1 || completedWorlds.includes(world.id - 1));
-              const progress = worldProgress[world.id];
-              const stars = progress?.stars ?? 0;
-
-              const nodeState = isCompleted ? 'completed' : isNext ? 'next' : isLocked ? 'locked' : 'unlocked';
-
-              return (
-                <button
-                  key={`node-${world.id}`}
-                  onClick={() => !isLocked && handleEnter(world.id, world.unlockLevel)}
-                  className={`world-node absolute -translate-x-1/2 -translate-y-1/2 ${nodeState}`}
-                  style={{ top: `${world.y}%`, left: `${world.x}%` }}
+            return (
+              <div key={tier.tier} className="mb-12">
+                {/* Tier banner */}
+                <div
+                  className="relative rounded-xl px-5 py-4 mb-5 overflow-hidden"
+                  style={{ background: `linear-gradient(135deg, ${tier.color}12 0%, transparent 60%)`, border: `1px solid ${tier.color}30` }}
                 >
-                  <div className="node-ring" />
-                  <div className="node-core" style={{ backgroundColor: world.color }}>
-                    <span className="text-lg">{world.emoji}</span>
-                  </div>
-                  <div className="node-label">
-                    <div className="font-orbitron text-[10px] leading-none">{world.name}</div>
-                    <div className="font-mono text-[10px]">{world.topic}</div>
-                    <div className="flex gap-0.5 justify-center mt-1">
-                      {[1, 2, 3].map(s => (
-                        <span key={s} className={`text-[9px] ${s <= stars ? 'text-yellow-400' : 'text-slate-700'}`}>★</span>
-                      ))}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="font-orbitron text-xs font-bold px-2 py-0.5 rounded" style={{ background: tier.color + '25', color: tier.color }}>
+                          TIER {tier.tier}
+                        </span>
+                        <span className="font-orbitron text-sm font-black text-white tracking-widest">{tier.name}</span>
+                      </div>
+                      <p className="font-mono text-xs text-slate-400 max-w-xl">{tier.arc}</p>
+                    </div>
+                    <div className="font-orbitron text-xs text-slate-500">
+                      {tierCompleted}/{tierWorlds.length} cleared
                     </div>
                   </div>
-                  {isLocked && <div className="node-lock">🔒</div>}
-                </button>
-              );
-            })}
-          </div>
+                  {/* Glow line */}
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: `linear-gradient(90deg, transparent, ${tier.color}60, transparent)` }} />
+                </div>
+
+                {/* World cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {tierWorlds.map((world, idx) => {
+                    const isCompleted = completedWorlds.includes(world.id);
+                    const isLocked = world.unlockLevel > currentLevel;
+                    const globalIdx = WORLDS.findIndex(w => w.id === world.id);
+                    const isNext = !isLocked && !isCompleted && (globalIdx === 0 || completedWorlds.includes(world.id - 1) || completedWorlds.length >= globalIdx);
+                    const progress = worldProgress[world.id];
+                    const stars = progress?.stars ?? 0;
+                    const isHovered = hoveredWorld === world.id;
+
+                    let borderColor = 'border-white/10';
+                    let glowStyle: React.CSSProperties = {};
+                    if (isCompleted) { borderColor = 'border-neon-green/40'; glowStyle = { boxShadow: '0 0 16px rgba(0,255,136,0.12)' }; }
+                    else if (isNext) { borderColor = 'border-neon-cyan/40'; glowStyle = { boxShadow: '0 0 16px rgba(0,212,255,0.12)' }; }
+
+                    return (
+                      <motion.div
+                        key={world.id}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.06 }}
+                        className={`relative bg-dark-800/70 backdrop-blur-sm rounded-xl border ${borderColor} overflow-hidden transition-all ${isLocked ? 'opacity-40' : 'hover:scale-[1.02] cursor-pointer'}`}
+                        style={glowStyle}
+                        onClick={() => !isLocked && handleEnter(world.id, world.unlockLevel)}
+                        onMouseEnter={() => setHoveredWorld(world.id)}
+                        onMouseLeave={() => setHoveredWorld(null)}
+                      >
+                        {/* World number badge */}
+                        <div
+                          className="absolute top-3 left-3 w-7 h-7 rounded-full flex items-center justify-center font-orbitron text-xs font-black"
+                          style={{ background: isCompleted ? '#00ff8820' : '#ffffff10', color: isCompleted ? '#00ff88' : '#888', border: `1px solid ${isCompleted ? '#00ff8840' : '#ffffff20'}` }}
+                        >
+                          {world.id}
+                        </div>
+
+                        {/* Status badge */}
+                        {isCompleted && <div className="absolute top-3 right-3 font-orbitron text-xs text-neon-green">✓</div>}
+                        {isLocked && <div className="absolute top-3 right-3 text-sm">🔒</div>}
+                        {isNext && !isCompleted && (
+                          <div className="absolute top-3 right-3">
+                            <span className="w-2 h-2 rounded-full bg-neon-cyan animate-pulse inline-block" />
+                          </div>
+                        )}
+
+                        <div className="px-4 pb-4 pt-12">
+                          {/* World identity */}
+                          <div className="text-2xl mb-1">{world.emoji}</div>
+                          <div className="font-orbitron font-bold text-sm text-white leading-tight mb-0.5">{world.name}</div>
+                          <div className="font-mono text-xs mb-3" style={{ color: world.color }}>{world.topic}</div>
+
+                          {/* Boss preview */}
+                          <div
+                            className="rounded-lg px-3 py-2 mb-3 border transition-all"
+                            style={{
+                              background: isLocked ? '#ffffff05' : `${world.color}10`,
+                              borderColor: isLocked ? '#ffffff15' : `${world.color}30`,
+                            }}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-base">{isLocked ? '❓' : world.boss.emoji}</span>
+                              <span className="font-orbitron text-xs font-bold" style={{ color: isLocked ? '#555' : world.color }}>
+                                {isLocked ? '???' : world.boss.name}
+                              </span>
+                            </div>
+                            <div className="font-mono text-xs text-slate-600">
+                              {isLocked ? 'Unlock to reveal' : world.boss.title}
+                            </div>
+                            {/* Boss lore on hover */}
+                            <AnimatePresence>
+                              {isHovered && !isLocked && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  <p className="font-mono text-xs text-slate-400 mt-2 leading-relaxed italic">
+                                    "{world.boss.lore}"
+                                  </p>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
+                          {/* Completed: show defeat quote */}
+                          {isCompleted && KARABO_BOSS_DEFEAT[world.id] && (
+                            <div className="font-mono text-xs text-neon-green/70 mb-3 leading-relaxed">
+                              ✦ {KARABO_BOSS_DEFEAT[world.id].split('.')[0]}.
+                            </div>
+                          )}
+
+                          {/* Story continues label for next world */}
+                          {isNext && !isCompleted && (
+                            <div className="font-orbitron text-xs text-neon-cyan animate-pulse mb-2">
+                              ▶ STORY CONTINUES...
+                            </div>
+                          )}
+
+                          {/* Stars */}
+                          <div className="flex gap-0.5 mb-3">
+                            {[1, 2, 3].map(s => (
+                              <span key={s} className={`text-sm ${s <= stars ? 'text-yellow-400' : 'text-slate-800'}`}>★</span>
+                            ))}
+                          </div>
+
+                          {/* Action */}
+                          {isLocked ? (
+                            <div className="font-orbitron text-xs text-slate-600">LVL {world.unlockLevel} required</div>
+                          ) : isCompleted ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleEnter(world.id, world.unlockLevel); }}
+                              className="w-full py-1.5 rounded font-orbitron text-xs border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all"
+                            >
+                              ↩ REMATCH
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleEnter(world.id, world.unlockLevel); }}
+                              className="w-full py-1.5 rounded font-orbitron text-xs font-bold transition-all"
+                              style={{ background: world.color + '22', border: `1px solid ${world.color}44`, color: world.color }}
+                            >
+                              ⚔ FIGHT
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Bottom accent */}
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: isCompleted ? '#00ff8840' : isNext ? '#00d4ff30' : 'transparent' }} />
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
 
           {/* Locked notification */}
           <AnimatePresence>

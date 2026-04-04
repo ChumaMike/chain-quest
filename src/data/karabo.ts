@@ -115,3 +115,37 @@ export const KARABO_HINT_USED: string = "The Archivist's scrolls reveal one fals
 export const KARABO_BOSS_NEAR: string = "The boss stirs. Everything you have learned leads to this moment.";
 
 export const KARABO_WORLD_COMPLETE: string = "The portal opens. I will fly ahead and wait for you in the next world.";
+
+export const TIER_INFO: Array<{ tier: number; name: string; worlds: number[]; arc: string; color: string }> = [
+  { tier: 1, name: 'BLOCK EXPLORER',    worlds: [1,2,3],     color: '#00d4ff',
+    arc: 'The chain is under attack. Three ancient threats seek to corrupt its very foundation.' },
+  { tier: 2, name: 'CHAIN APPRENTICE',  worlds: [4,5,6],     color: '#00ff88',
+    arc: 'DeFi, NFTs, and DAOs are being weaponised. The decentralised economy is under siege.' },
+  { tier: 3, name: 'PROTOCOL BUILDER',  worlds: [7,8,9],     color: '#8b5cf6',
+    arc: 'The Web3 frontier is being seized. Infrastructure, DApps, and liquidity factories face ruin.' },
+  { tier: 4, name: 'DAPP ARCHITECT',    worlds: [10,11,12],  color: '#ff6b35',
+    arc: 'Deep protocol layers are being frozen. Routing, proxies, and smart accounts are at stake.' },
+  { tier: 5, name: 'NETWORK ENGINEER',  worlds: [13,14],     color: '#f59e0b',
+    arc: "Ethereum's scalability and governance are under siege — the last critical infrastructure battles." },
+  { tier: 6, name: 'CHAIN SOVEREIGN',   worlds: [15,16],     color: '#ffd700',
+    arc: 'The final reckoning. Only a fully-forged developer can face what awaits at the Summit.' },
+];
+
+export const KARABO_BOSS_DEFEAT: Record<number, string> = {
+  1:  "The Corruptor's lies are burned from the chain. The Genesis Block stands immutable once more. The next world stirs.",
+  2:  "The Phantom Thief vanishes into cryptographic dust. Your keys are your own. The Wallet Wastes are safe.",
+  3:  "The Bugcaster's exploits are patched. The Contract Citadel stands. Every function you know is a wall they can never breach.",
+  4:  "The Rug Baron's schemes collapse into worthless tokens. The DeFi Dungeon is restored. True finance survives.",
+  5:  "The Counterfeit King's forgeries dissolve. True ownership is verified on-chain. The NFT Nexus is cleansed.",
+  6:  "The Vote Manipulator's governance attack fails. The DAO holds. On-chain democracy lives another day.",
+  7:  "The Centralizer retreats. CentCorp's grip on the frontier breaks. The open Web3 future remains yours.",
+  8:  "The Centralist's servers go dark. DApp Dominion belongs to no master. The decentralised web endures.",
+  9:  "The Clone Factory shuts down. Every fraudulent pair is drained. True liquidity is born here again.",
+  10: "The Pathfinder's corrupted algorithms are rewritten. Every swap now finds its honest route.",
+  11: "The Immutable shatters. Upgradeable contracts live on. The Proxy Peaks are free to evolve forever.",
+  12: "The EOA Tyrant's era ends. Smart accounts open the chain to everyone. The Abstraction Arcana is reborn.",
+  13: "The Gas Warden's grip on fees loosens. Blobs flow freely across the Rollup Realm. Users breathe again.",
+  14: "The Autocrat's stolen treasury is returned to the people. The Governance Hall rings with legitimate votes.",
+  15: "The Counterfeiter is exposed. Every NFT now carries verified provenance. The deep Nexus is authentic.",
+  16: "The Unchained yields — not in defeat, but in recognition. You have mastered the full stack. The chain is complete.",
+};

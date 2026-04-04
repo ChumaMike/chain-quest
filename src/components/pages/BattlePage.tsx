@@ -7,7 +7,7 @@ import { useCountdown } from '../../hooks/useCountdown';
 import { useSocket } from '../../hooks/useSocket';
 import { WORLDS } from '../../data/curriculum';
 import { HEROES } from '../../data/heroes';
-import { KARABO_INTRO, KARABO_WIN, KARABO_LOSE, KARABO_BOSS_NEAR } from '../../data/karabo';
+import { KARABO_INTRO, KARABO_WIN, KARABO_LOSE, KARABO_BOSS_NEAR, KARABO_BOSS_DEFEAT, KARABO_WORLD_COMPLETE } from '../../data/karabo';
 import { KaraboCompanion, useKarabo } from '../ui/KaraboCompanion';
 import ProgressBar from '../ui/ProgressBar';
 import PageWrapper from '../ui/PageWrapper';
@@ -48,6 +48,7 @@ export default function BattlePage() {
   const [showDefeat, setShowDefeat] = useState(false);
   const [claimResult, setClaimResult] = useState<any>(null);
   const [battlePhase, setBattlePhase] = useState<'intro' | 'fighting'>('intro');
+  const [introStage, setIntroStage] = useState<0 | 1 | 2>(0);
   const [streakAnim, setStreakAnim] = useState(false);
   const { claimReward } = useWeb3();
 
@@ -96,6 +97,19 @@ export default function BattlePage() {
       });
     return () => resetBattle();
   }, [wId]);
+
+  // Auto-advance intro stages: 0 → boss arrival (2.5s) → 1 → lore (3.5s) → 2 → manual
+  useEffect(() => {
+    if (battlePhase !== 'intro') return;
+    if (introStage === 0) {
+      const t = setTimeout(() => setIntroStage(1), 2500);
+      return () => clearTimeout(t);
+    }
+    if (introStage === 1) {
+      const t = setTimeout(() => setIntroStage(2), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [battlePhase, introStage]);
 
   const addPopup = useCallback((text: string, color: string) => {
     const id = popupId.current++;
@@ -242,6 +256,87 @@ export default function BattlePage() {
   }
 
   if (battlePhase === 'intro') {
+    // Stage 0 — Boss Arrival
+    if (introStage === 0) {
+      return (
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: `radial-gradient(ellipse at 50% 30%, ${world.color}18 0%, #04060f 65%)` }}
+        >
+          <motion.div
+            key="stage0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-center px-6 max-w-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.4, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              className="text-8xl mb-6"
+            >
+              {world.boss.emoji}
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+            >
+              <div className="font-orbitron font-black text-2xl sm:text-3xl text-white mb-2 tracking-widest">
+                {world.boss.name.toUpperCase()}
+              </div>
+              <div className="h-0.5 w-24 mx-auto mb-3" style={{ background: world.color }} />
+              <div className="font-mono text-sm tracking-widest uppercase" style={{ color: world.color }}>
+                {world.boss.title}
+              </div>
+            </motion.div>
+          </motion.div>
+        </div>
+      );
+    }
+
+    // Stage 1 — Boss Lore
+    if (introStage === 1) {
+      return (
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: `radial-gradient(ellipse at 50% 30%, ${world.color}12 0%, #04060f 65%)` }}
+        >
+          <motion.div
+            key="stage1"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-center px-6 max-w-md"
+          >
+            <div className="text-4xl mb-5 opacity-60">{world.boss.emoji}</div>
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.8 }}
+              className="font-mono text-base text-slate-300 leading-relaxed mb-6 italic"
+            >
+              "{world.boss.lore}"
+            </motion.p>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+            >
+              <KaraboCompanion
+                phase="intro"
+                worldId={wId}
+                message={KARABO_INTRO[wId]}
+                onDismiss={karabo.dismiss}
+              />
+            </motion.div>
+          </motion.div>
+        </div>
+      );
+    }
+
+    // Stage 2 — Battle Brief (manual dismiss)
     return (
       <PageWrapper>
         <div className="min-h-screen bg-grid flex items-center justify-center px-4" style={{ background: `radial-gradient(ellipse at 50% 0%, ${world.color}10 0%, #04060f 60%)` }}>
@@ -250,12 +345,6 @@ export default function BattlePage() {
             animate={{ opacity: 1, scale: 1 }}
             className="max-w-md w-full"
           >
-          <KaraboCompanion
-            phase="intro"
-            worldId={wId}
-            message={KARABO_INTRO[wId]}
-            onDismiss={karabo.dismiss}
-          />
             <div className="neon-border-cyan bg-dark-800 rounded-2xl p-5 sm:p-8 text-center overflow-y-auto max-h-[90vh]">
               {/* World header */}
               <div className="mb-4">
@@ -267,7 +356,7 @@ export default function BattlePage() {
               </div>
 
               {/* Boss preview */}
-              <div className="bg-dark-900 rounded-xl p-4 mb-5 border border-white/10">
+              <div className="bg-dark-900 rounded-xl p-4 mb-5 border" style={{ borderColor: world.color + '30' }}>
                 <div className="text-4xl mb-2">{world.boss.emoji}</div>
                 <div className="font-orbitron text-sm font-bold mb-0.5" style={{ color: world.color }}>{world.boss.name}</div>
                 <div className="font-mono text-xs text-slate-500 mb-2">{world.boss.title}</div>
@@ -498,7 +587,14 @@ export default function BattlePage() {
           <div className="text-center">
             <div className="text-6xl mb-4">🏆</div>
             <h2 className="font-orbitron font-black text-2xl text-neon-green glow-green mb-2">WORLD CLEARED!</h2>
-            <div className="text-slate-400 mb-4">{world.boss.name} has been defeated!</div>
+            <div className="font-mono text-xs text-slate-500 mb-4">{world.description}</div>
+            {/* Karabo defeat narrative */}
+            <div className="bg-dark-900/80 rounded-xl px-4 py-3 mb-5 border border-neon-cyan/20 text-left">
+              <div className="font-orbitron text-xs text-neon-cyan mb-1.5">KARABO</div>
+              <p className="font-mono text-sm text-slate-300 leading-relaxed italic">
+                "{KARABO_BOSS_DEFEAT[wId] ?? KARABO_WORLD_COMPLETE}"
+              </p>
+            </div>
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-dark-900 rounded-lg p-3"><div className="font-orbitron text-neon-cyan text-lg">{battle.score.toLocaleString()}</div><div className="text-slate-600 text-xs">SCORE</div></div>
               <div className="bg-dark-900 rounded-lg p-3"><div className="font-orbitron text-neon-green text-lg">{world.cqtReward}</div><div className="text-slate-600 text-xs">CQT EARNED</div></div>
