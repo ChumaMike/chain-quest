@@ -59,8 +59,11 @@ export default function BlockRacerPage() {
     game.events.on('racer:exit', (data: any) => {
       setResult(data);
       if (data.won) {
-        completeWorld(worldId || data.worldId, data.score ?? 2000);
-        addXP(data.xpGained ?? 80);
+        const wId = worldId || data.worldId;
+        if (wId > 0) {
+          completeWorld(wId, Math.round((data.score ?? 0) * 3.5));
+          addXP(data.xpGained ?? 80);
+        }
       }
     });
 

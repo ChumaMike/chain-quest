@@ -137,6 +137,14 @@ export default class JumperScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(20);
 
+    // World context banner
+    const worldInfoJ = this.worldId ? WORLDS.find(w => w.id === this.worldId) : null;
+    if (worldInfoJ) {
+      this.add.text(GAME_W / 2, 48, `${worldInfoJ.emoji}  ${worldInfoJ.name.toUpperCase()}`, {
+        fontFamily: 'Share Tech Mono', fontSize: '8px', color: '#ffffff33',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(5);
+    }
+
     // Question overlay (initially invisible)
     this.qOverlay = this.add.container(0, 0).setScrollFactor(0).setDepth(25).setVisible(false);
     const overlayBg = this.add.rectangle(W / 2, 200, W - 20, 340, 0x04060f, 0.95)

@@ -126,6 +126,14 @@ export default class DuelScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5);
 
+    // World context banner
+    const worldInfoD = this.worldId ? WORLDS.find(w => w.id === this.worldId) : null;
+    if (worldInfoD) {
+      this.add.text(W / 2, 42, `${worldInfoD.emoji}  ${worldInfoD.name.toUpperCase()}`, {
+        fontFamily: 'Share Tech Mono', fontSize: '8px', color: '#ffffff33',
+      }).setOrigin(0.5);
+    }
+
     this.qCounterText = this.add.text(W / 2, 52, '1 / 8', {
       fontFamily: 'monospace', fontSize: '12px', color: '#666688',
     }).setOrigin(0.5);
@@ -390,7 +398,9 @@ export default class DuelScene extends Phaser.Scene {
     }).setOrigin(0.5);
     exitBg.on('pointerover', () => exitBg.setFillStyle(0x003344));
     exitBg.on('pointerdown', () => {
-      const score = playerWon ? 4000 + this.playerHP * 10 : this.questionIndex * 300;
+      const score = playerWon
+        ? 3000 + this.questionIndex * 250 + this.playerHP * 10
+        : this.questionIndex * 300;
       this.game.events.emit('duel:exit', { playerWon, playerHP: this.playerHP, opponentHP: this.opponentHP, worldId: this.worldId, score, xpGained: Math.round(score / 10) });
     });
   }

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { BattleState, BattlePhase, Question, AnswerResult, StreakMultiplier } from '../types';
 import { HEROES } from '../data/heroes';
 import { WORLDS } from '../data/curriculum';
@@ -75,7 +76,9 @@ function getStreakMultiplier(streak: number, heroClass: string): StreakMultiplie
   return 1;
 }
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>()(
+  persist(
+    (set, get) => ({
   battle: defaultBattle,
   worldProgress: {},
   completedWorlds: [],
@@ -408,4 +411,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unlockAchievement('auditor');
     }
   },
-}));
+    }),
+    {
+      name: 'chain-quest-game-state',
+      partialize: (state) => ({
+        worldProgress: state.worldProgress,
+        completedWorlds: state.completedWorlds,
+        totalXP: state.totalXP,
+        currentLevel: state.currentLevel,
+        unlockedAchievements: state.unlockedAchievements,
+        hintsRemaining: state.hintsRemaining,
+        totalHintsUsed: state.totalHintsUsed,
+      }),
+    }
+  )
+);

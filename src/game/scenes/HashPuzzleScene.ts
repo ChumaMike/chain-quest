@@ -32,13 +32,45 @@ function countLeadingZeros(hash: string): number {
   return count;
 }
 
-const BLOCK_DATA = [
+type BlockEntry = { prev: string; data: string; ts: string };
+
+const GENERIC_BLOCK_DATA: BlockEntry[] = [
   { prev: '0x00a3f1b7...', data: 'Alice → Bob: 0.5 ETH', ts: '2024-01-15 14:23:01' },
   { prev: '0x00c41d9e...', data: 'Contract Deploy #841', ts: '2024-01-15 14:28:33' },
   { prev: '0x001e88af...', data: 'Token Transfer: 100 CQT', ts: '2024-01-15 15:01:17' },
   { prev: '0x00ff3c02...', data: 'Swap 2 ETH → 4000 USDC', ts: '2024-01-15 15:44:52' },
   { prev: '0x000ab17d...', data: 'Stake 32 ETH → Validator', ts: '2024-01-15 16:12:08' },
 ];
+
+const WALLET_BLOCK_DATA: BlockEntry[] = [
+  { prev: '0x00b4e29c...', data: 'KEY_GEN: secp256k1 #7291', ts: '2024-02-01 09:14:22' },
+  { prev: '0x00d72a11...', data: 'SIGN: Tx #0x4f3a... (valid)', ts: '2024-02-01 09:19:44' },
+  { prev: '0x00ef5c88...', data: 'VERIFY: pubkey match ✓', ts: '2024-02-01 09:31:07' },
+  { prev: '0x00183da4...', data: 'SEED_DERIVE: BIP-44 m/44/60', ts: '2024-02-01 09:47:55' },
+  { prev: '0x00a91b66...', data: 'TRANSFER: 0.01 ETH (signed)', ts: '2024-02-01 10:02:33' },
+];
+
+const FACTORY_BLOCK_DATA: BlockEntry[] = [
+  { prev: '0x00c81f3e...', data: 'CREATE_PAIR: WETH/USDC #0', ts: '2024-03-10 11:04:18' },
+  { prev: '0x00a34c7b...', data: 'CREATE_PAIR: ETH/DAI #1', ts: '2024-03-10 11:12:44' },
+  { prev: '0x00f19d22...', data: 'INIT_CODE_HASH: 0x96e8ac42...', ts: '2024-03-10 11:28:09' },
+  { prev: '0x00b7ea55...', data: 'GET_PAIR: allPairs[441]', ts: '2024-03-10 11:39:52' },
+  { prev: '0x00219cf8...', data: 'DEPLOY: UniswapV2Pair.sol', ts: '2024-03-10 11:55:31' },
+];
+
+const PROXY_BLOCK_DATA: BlockEntry[] = [
+  { prev: '0x003f9a14...', data: 'STORE: _IMPL_SLOT = 0x360894...', ts: '2024-04-22 14:01:17' },
+  { prev: '0x00c2d871...', data: 'DELEGATE: call → impl v2', ts: '2024-04-22 14:08:39' },
+  { prev: '0x00884e0c...', data: 'UPGRADE: newImpl deployed', ts: '2024-04-22 14:22:55' },
+  { prev: '0x00f5a32b...', data: 'FALLBACK: proxy redirected', ts: '2024-04-22 14:37:14' },
+  { prev: '0x00d19b77...', data: 'ADMIN: transferOwnership → multisig', ts: '2024-04-22 14:51:42' },
+];
+
+const WORLD_BLOCK_DATA: Record<number, BlockEntry[]> = {
+  2: WALLET_BLOCK_DATA,
+  9: FACTORY_BLOCK_DATA,
+  11: PROXY_BLOCK_DATA,
+};
 
 export default class HashPuzzleScene extends Phaser.Scene {
   private playerData: any = {};
@@ -57,6 +89,8 @@ export default class HashPuzzleScene extends Phaser.Scene {
   private qTimerEvent: Phaser.Time.TimerEvent | null = null;
   private qTimerSec = 20;
   private pendingNextPuzzle = false;
+
+  private blockData: BlockEntry[] = GENERIC_BLOCK_DATA;
 
   // Puzzle state
   private puzzleIndex = 0;
@@ -112,6 +146,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
     this.autoMineTimer = 0;
     this.totalTimeBonus = 0;
     this.chainBlocks = [];
+    this.blockData = WORLD_BLOCK_DATA[this.worldId] ?? GENERIC_BLOCK_DATA;
     this.computeHash();
   }
 
@@ -153,6 +188,12 @@ export default class HashPuzzleScene extends Phaser.Scene {
     this.add.text(W / 2, 46, 'FIND THE NONCE THAT MAKES THE HASH VALID', {
       fontFamily: 'Share Tech Mono', fontSize: '8px', color: '#8b5cf688',
     }).setOrigin(0.5);
+    const worldInfoH = this.worldId ? WORLDS.find(w => w.id === this.worldId) : null;
+    if (worldInfoH) {
+      this.add.text(W / 2, 60, `${worldInfoH.emoji}  ${worldInfoH.name.toUpperCase()}`, {
+        fontFamily: 'Share Tech Mono', fontSize: '8px', color: '#ffffff33',
+      }).setOrigin(0.5);
+    }
   }
 
   private createBlockDisplay(W: number, H: number) {
@@ -301,7 +342,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
   }
 
   private loadPuzzle() {
-    if (this.puzzleIndex >= BLOCK_DATA.length) {
+    if (this.puzzleIndex >= this.blockData.length) {
       this.endGame('win');
       return;
     }
@@ -335,7 +376,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
   }
 
   private updateBlockFields() {
-    const block = BLOCK_DATA[this.puzzleIndex];
+    const block = this.blockData[this.puzzleIndex];
     const bW = (this as any)._blockW;
     const by = (this as any)._blockY;
     const blockX = this.cameras.main.width / 2;
@@ -360,7 +401,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
   }
 
   private computeHash() {
-    const block = BLOCK_DATA[this.puzzleIndex] || BLOCK_DATA[0];
+    const block = this.blockData[this.puzzleIndex] || this.blockData[0];
     const input = block.prev + block.data + block.ts;
     this.currentHash = pseudoHash(input, this.nonce);
     this.isValid = countLeadingZeros(this.currentHash) >= this.targetZeros;
@@ -444,7 +485,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
     // Show question after brief pause, then next puzzle
     this.time.delayedCall(1000, () => {
       this.puzzleIndex++;
-      if (this.puzzleIndex >= BLOCK_DATA.length) {
+      if (this.puzzleIndex >= this.blockData.length) {
         this.endGame('win');
       } else {
         this.triggerHashQuestion();
@@ -548,7 +589,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
       this.puzzleIndex++;
       this.autoMining = false;
       this.autoMineLed.setFillStyle(0x555555);
-      if (this.puzzleIndex >= BLOCK_DATA.length || this.puzzlesSolved === 0) {
+      if (this.puzzleIndex >= this.blockData.length || this.puzzlesSolved === 0) {
         this.endGame('lose');
         return;
       }

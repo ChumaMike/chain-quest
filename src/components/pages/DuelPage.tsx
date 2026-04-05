@@ -60,8 +60,11 @@ export default function DuelPage() {
     game.events.on('duel:exit', (data: any) => {
       setResult(data);
       if (data.playerWon) {
-        completeWorld(worldId || data.worldId, data.score ?? 4000);
-        addXP(data.xpGained ?? 100);
+        const wId = worldId || data.worldId;
+        if (wId > 0) {
+          completeWorld(wId, data.score ?? 4000);
+          addXP(data.xpGained ?? 100);
+        }
         unlockAchievement('first_duel');
       }
     });

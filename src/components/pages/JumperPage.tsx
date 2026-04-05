@@ -63,8 +63,11 @@ export default function JumperPage() {
     game.events.on('jumper:exit', (data: any) => {
       setResult(data);
       if (data.won) {
-        completeWorld(worldId || data.worldId, data.score ?? 3000);
-        addXP(data.xpGained ?? 80);
+        const wId = worldId || data.worldId;
+        if (wId > 0) {
+          completeWorld(wId, data.score ?? 3000);
+          addXP(data.xpGained ?? 80);
+        }
         if (data.lives === 3) unlockAchievement('jumper_ace');
       }
     });

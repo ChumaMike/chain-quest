@@ -159,6 +159,12 @@ export default class BlockRacerScene extends Phaser.Scene {
     this.add.text(W / 2, 52, 'COLLECT VALID BLOCKS · AVOID INVALID TRANSACTIONS', {
       fontFamily: 'Share Tech Mono', fontSize: '9px', color: '#00d4ff88',
     }).setOrigin(0.5);
+    const worldInfoR = this.worldId ? WORLDS.find(w => w.id === this.worldId) : null;
+    if (worldInfoR) {
+      this.add.text(W / 2, 68, `${worldInfoR.emoji}  ${worldInfoR.name.toUpperCase()}`, {
+        fontFamily: 'Share Tech Mono', fontSize: '8px', color: '#ffffff33',
+      }).setOrigin(0.5);
+    }
 
     // Scrolling grid lines (background)
     const gridGfx = this.add.graphics();

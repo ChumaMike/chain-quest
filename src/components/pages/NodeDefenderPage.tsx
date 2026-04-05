@@ -59,8 +59,11 @@ export default function NodeDefenderPage() {
     game.events.on('defender:exit', (data: any) => {
       setResult(data);
       if (data.won) {
-        completeWorld(worldId || data.worldId, data.score ?? 3000);
-        addXP(data.xpGained ?? 100);
+        const wId = worldId || data.worldId;
+        if (wId > 0) {
+          completeWorld(wId, (data.score ?? 0) + 200);
+          addXP(data.xpGained ?? 100);
+        }
       }
     });
 

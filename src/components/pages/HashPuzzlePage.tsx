@@ -59,8 +59,11 @@ export default function HashPuzzlePage() {
     game.events.on('hash:exit', (data: any) => {
       setResult(data);
       if (data.won) {
-        completeWorld(worldId || data.worldId, data.score ?? 2500);
-        addXP(data.xpGained ?? 90);
+        const wId = worldId || data.worldId;
+        if (wId > 0) {
+          completeWorld(wId, Math.round((data.score ?? 0) * 1.4));
+          addXP(data.xpGained ?? 90);
+        }
       }
     });
 
