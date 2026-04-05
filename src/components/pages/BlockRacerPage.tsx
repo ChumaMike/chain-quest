@@ -7,13 +7,13 @@ import { HEROES } from '../../data/heroes';
 import { WORLDS } from '../../data/curriculum';
 import { KARABO_BOSS_DEFEAT } from '../../data/karabo';
 import { apiFetch } from '../../lib/api';
-import JumperScene from '../../game/scenes/JumperScene';
+import BlockRacerScene from '../../game/scenes/BlockRacerScene';
 import PageWrapper from '../ui/PageWrapper';
 import Button from '../ui/Button';
 
-export default function JumperPage() {
+export default function BlockRacerPage() {
   const { user, token } = useAuthStore();
-  const { unlockAchievement, completeWorld, addXP } = useGameStore();
+  const { completeWorld, addXP } = useGameStore();
   const navigate = useNavigate();
   const location = useLocation();
   const worldId = parseInt(new URLSearchParams(location.search).get('world') ?? '0');
@@ -21,7 +21,7 @@ export default function JumperPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [result, setResult] = useState<{ won: boolean; lives: number } | null>(null);
+  const [result, setResult] = useState<{ won: boolean; score: number; blocksCollected: number; xpGained: number } | null>(null);
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
@@ -44,41 +44,30 @@ export default function JumperPage() {
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
-      parent: 'jumper-canvas',
-      width: 400,
+      parent: 'racer-canvas',
+      width: 480,
       height: 640,
       backgroundColor: '#04060f',
-      scene: [JumperScene],
-      physics: {
-        default: 'arcade',
-        arcade: { gravity: { y: 0, x: 0 }, debug: false },
-      },
-      scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-      },
+      scene: [BlockRacerScene],
+      scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     });
     gameRef.current = game;
 
     game.events.once('ready', () => {
-      game.scene.start('JumperScene', { ...playerData, worldId });
+      game.scene.start('BlockRacerScene', { playerData, worldId });
     });
 
-    game.events.on('jumper:exit', (data: any) => {
+    game.events.on('racer:exit', (data: any) => {
       setResult(data);
       if (data.won) {
-        completeWorld(worldId || data.worldId, data.score ?? 3000);
+        completeWorld(worldId || data.worldId, data.score ?? 2000);
         addXP(data.xpGained ?? 80);
-        if (data.lives === 3) unlockAchievement('jumper_ace');
       }
     });
   };
 
   const handleExit = () => {
-    if (gameRef.current) {
-      gameRef.current.destroy(true);
-      gameRef.current = null;
-    }
+    if (gameRef.current) { gameRef.current.destroy(true); gameRef.current = null; }
     navigate('/campaign');
   };
 
@@ -88,28 +77,22 @@ export default function JumperPage() {
       <PageWrapper>
         <div className="min-h-screen bg-grid flex items-center justify-center px-4">
           <div className="max-w-sm w-full bg-dark-800 rounded-2xl p-8 text-center neon-border-cyan">
-            <div className="text-5xl mb-4">{result.won ? '🏆' : '💔'}</div>
-            <h2 className="font-orbitron font-black text-2xl mb-2" style={{ color: result.won ? '#f59e0b' : '#ff4444' }}>
-              {result.won ? 'SUMMIT REACHED!' : 'FELL SHORT'}
+            <div className="text-5xl mb-4">{result.won ? '🏎' : '💥'}</div>
+            <h2 className="font-orbitron font-black text-2xl mb-2" style={{ color: result.won ? '#00d4ff' : '#ff4444' }}>
+              {result.won ? 'BLOCKS CONFIRMED!' : 'TX FAILED'}
             </h2>
             {world && <p className="text-slate-500 font-orbitron text-xs mb-2">{world.emoji} {world.name}</p>}
-            <p className="text-slate-400 font-mono text-sm mb-2">Lives remaining: {result.lives}</p>
+            <p className="text-slate-400 font-mono text-sm mb-1">Blocks: {result.blocksCollected} · Score: {result.score}</p>
+            <p className="text-neon-amber font-orbitron text-xs mb-3">+{result.xpGained} XP</p>
             {result.won && defeatQuote && (
               <div className="bg-dark-900/80 rounded-xl px-4 py-3 mb-3 border border-neon-cyan/20 text-left">
                 <div className="text-xs font-orbitron text-neon-cyan mb-1">KARABO</div>
                 <p className="font-mono text-xs text-slate-300 leading-relaxed italic">"{defeatQuote.split('.')[0]}."</p>
               </div>
             )}
-            {result.won && result.lives === 3 && (
-              <p className="text-neon-amber font-orbitron text-xs mb-4">🪂 Achievement unlocked: Jumper Ace!</p>
-            )}
-            <div className="flex gap-3 justify-center mt-6">
-              <Button onClick={() => { setResult(null); setStarted(false); }} variant="ghost">
-                PLAY AGAIN
-              </Button>
-              <Button onClick={handleExit} variant="neon">
-                RETURN TO WORLD
-              </Button>
+            <div className="flex gap-3 justify-center mt-4">
+              <Button onClick={() => { setResult(null); setStarted(false); }} variant="ghost">PLAY AGAIN</Button>
+              <Button onClick={handleExit} variant="neon">RETURN TO CAMPAIGN</Button>
             </div>
           </div>
         </div>
@@ -122,20 +105,16 @@ export default function JumperPage() {
       <PageWrapper>
         <div className="min-h-screen bg-grid flex items-center justify-center px-4">
           <div className="max-w-sm w-full bg-dark-800 rounded-2xl p-8 text-center neon-border-cyan">
-            <div className="text-5xl mb-4">🪂</div>
-            <h1 className="font-orbitron font-black text-2xl text-neon-cyan mb-2">THE JUMPER</h1>
+            <div className="text-5xl mb-4">🏎</div>
+            <h1 className="font-orbitron font-black text-2xl text-neon-cyan mb-2">BLOCK RACER</h1>
+            {world && <p className="text-slate-500 font-mono text-xs mb-3">{world.emoji} {world.name} — {world.topic}</p>}
             <p className="text-slate-400 font-mono text-sm mb-6 leading-relaxed">
-              Climb an infinite tower of platforms. Every third platform triggers a blockchain question.
-              Answer correctly for a speed boost. Wrong — lose a life. 3 lives to reach the summit.
+              Dodge invalid transactions and collect valid blocks racing down the chain.
+              Every 5 blocks, a question pops up — answer correctly for a speed boost!
             </p>
             <div className="bg-dark-900 rounded-xl p-4 mb-6 text-left space-y-2">
               <div className="font-orbitron text-xs text-slate-500 mb-2">CONTROLS</div>
-              {[
-                'SPACE / ↑ to jump',
-                'Click / Tap to jump on mobile',
-                'Answer questions on purple platforms',
-                '20 seconds to answer each question',
-              ].map((r, i) => (
+              {['↑ / W — switch to faster lane', '↓ / S — switch to slower lane', 'Tap top/bottom half on mobile', 'Collect blue circles · Avoid red blocks'].map((r, i) => (
                 <div key={i} className="flex gap-2 items-center">
                   <span className="text-neon-cyan text-xs">✦</span>
                   <span className="font-mono text-xs text-slate-300">{r}</span>
@@ -144,9 +123,7 @@ export default function JumperPage() {
             </div>
             <div className="flex gap-3 justify-center">
               <Button onClick={() => navigate('/campaign')} variant="ghost">← BACK</Button>
-              <Button onClick={startGame} variant="neon" disabled={!profile}>
-                JUMP IN
-              </Button>
+              <Button onClick={startGame} variant="neon" disabled={!profile}>RACE!</Button>
             </div>
           </div>
         </div>
@@ -156,7 +133,7 @@ export default function JumperPage() {
 
   return (
     <div className="min-h-screen bg-grid flex items-center justify-center" style={{ background: '#04060f' }}>
-      <div id="jumper-canvas" ref={containerRef} className="w-full max-w-md" style={{ aspectRatio: '5/8' }} />
+      <div id="racer-canvas" ref={containerRef} className="w-full max-w-lg" style={{ aspectRatio: '3/4' }} />
     </div>
   );
 }

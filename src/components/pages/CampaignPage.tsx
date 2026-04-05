@@ -5,6 +5,7 @@ import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { WORLDS } from '../../data/curriculum';
 import { TIER_INFO, KARABO_BOSS_DEFEAT } from '../../data/karabo';
+import { WORLD_MINI_GAME } from '../../data/worldMiniGame';
 import ProgressBar from '../ui/ProgressBar';
 import PageWrapper from '../ui/PageWrapper';
 
@@ -24,7 +25,8 @@ export default function CampaignPage() {
       setTimeout(() => setLockedMsg(null), 3000);
       return;
     }
-    navigate(`/battle/${worldId}`);
+    const cfg = WORLD_MINI_GAME[worldId];
+    navigate(`${cfg.route}?world=${worldId}`);
   };
 
   return (
@@ -168,7 +170,13 @@ export default function CampaignPage() {
                           {/* World identity */}
                           <div className="text-2xl mb-1">{world.emoji}</div>
                           <div className="font-orbitron font-bold text-sm text-white leading-tight mb-0.5">{world.name}</div>
-                          <div className="font-mono text-xs mb-3" style={{ color: world.color }}>{world.topic}</div>
+                          <div className="font-mono text-xs mb-1" style={{ color: world.color }}>{world.topic}</div>
+                          {/* Mini-game type badge */}
+                          {!isLocked && (() => { const cfg = WORLD_MINI_GAME[world.id]; return (
+                            <div className="inline-flex items-center gap-1 font-mono text-xs text-slate-500 mb-2">
+                              <span>{cfg.emoji}</span><span>{cfg.label}</span>
+                            </div>
+                          ); })()}
 
                           {/* Boss preview */}
                           <div

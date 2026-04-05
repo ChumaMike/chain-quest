@@ -15,6 +15,9 @@ import ProfilePage from './components/pages/ProfilePage';
 import StudyGuidePage from './components/pages/StudyGuidePage';
 import DuelPage from './components/pages/DuelPage';
 import JumperPage from './components/pages/JumperPage';
+import BlockRacerPage from './components/pages/BlockRacerPage';
+import HashPuzzlePage from './components/pages/HashPuzzlePage';
+import NodeDefenderPage from './components/pages/NodeDefenderPage';
 import Navbar from './components/ui/Navbar';
 import AchievementToast from './components/ui/AchievementToast';
 
@@ -46,6 +49,9 @@ export default function App() {
             <Route path="/study" element={<ProtectedRoute><StudyGuidePage /></ProtectedRoute>} />
             <Route path="/game/duel" element={<ProtectedRoute><DuelPage /></ProtectedRoute>} />
             <Route path="/game/jumper" element={<ProtectedRoute><JumperPage /></ProtectedRoute>} />
+            <Route path="/game/racer" element={<ProtectedRoute><BlockRacerPage /></ProtectedRoute>} />
+            <Route path="/game/hash" element={<ProtectedRoute><HashPuzzlePage /></ProtectedRoute>} />
+            <Route path="/game/defender" element={<ProtectedRoute><NodeDefenderPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AnimatePresence>

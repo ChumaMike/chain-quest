@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Phaser from 'phaser';
 import { useAuthStore } from '../../store/authStore';
 import { useGameStore } from '../../store/gameStore';
 import { HEROES } from '../../data/heroes';
+import { WORLDS } from '../../data/curriculum';
+import { KARABO_BOSS_DEFEAT } from '../../data/karabo';
 import { apiFetch } from '../../lib/api';
 import DuelScene from '../../game/scenes/DuelScene';
 import PageWrapper from '../ui/PageWrapper';
@@ -11,8 +13,11 @@ import Button from '../ui/Button';
 
 export default function DuelPage() {
   const { user, token } = useAuthStore();
-  const { unlockedAchievements, unlockAchievement } = useGameStore();
+  const { unlockedAchievements, unlockAchievement, completeWorld, addXP } = useGameStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const worldId = parseInt(new URLSearchParams(location.search).get('world') ?? '0');
+  const world = WORLDS.find(w => w.id === worldId);
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -54,13 +59,15 @@ export default function DuelPage() {
 
     // Pass player data after scene is ready
     game.events.once('ready', () => {
-      game.scene.start('DuelScene', playerData);
+      game.scene.start('DuelScene', { ...playerData, worldId });
     });
 
     // Listen for exit event
     game.events.on('duel:exit', (data: any) => {
       setResult(data);
       if (data.playerWon) {
+        completeWorld(worldId || data.worldId, data.score ?? 4000);
+        addXP(data.xpGained ?? 100);
         unlockAchievement('first_duel');
       }
     });
@@ -75,6 +82,7 @@ export default function DuelPage() {
   };
 
   if (result) {
+    const defeatQuote = worldId ? KARABO_BOSS_DEFEAT[worldId] : null;
     return (
       <PageWrapper>
         <div className="min-h-screen bg-grid flex items-center justify-center px-4">
@@ -83,9 +91,16 @@ export default function DuelPage() {
             <h2 className="font-orbitron font-black text-2xl mb-2" style={{ color: result.playerWon ? '#00ff88' : '#ff4444' }}>
               {result.playerWon ? 'VICTORY' : 'DEFEATED'}
             </h2>
+            {world && <p className="text-slate-500 font-orbitron text-xs mb-2">{world.emoji} {world.name}</p>}
             <p className="text-slate-400 font-mono text-sm mb-2">
               Your HP: {result.playerHP} | Opponent HP: {result.opponentHP}
             </p>
+            {result.playerWon && defeatQuote && (
+              <div className="bg-dark-900/80 rounded-xl px-4 py-3 mb-3 border border-neon-cyan/20 text-left">
+                <div className="text-xs font-orbitron text-neon-cyan mb-1">KARABO</div>
+                <p className="font-mono text-xs text-slate-300 leading-relaxed italic">"{defeatQuote.split('.')[0]}."</p>
+              </div>
+            )}
             {result.playerWon && !unlockedAchievements.includes('first_duel') && (
               <p className="text-neon-amber font-orbitron text-xs mb-4">⚔ Achievement unlocked: First Duel!</p>
             )}

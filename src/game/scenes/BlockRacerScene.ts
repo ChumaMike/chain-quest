@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import OpenWorldScene from './OpenWorldScene';
+import { WORLDS } from '../../data/curriculum';
+import type { Question } from '../../types';
 
 interface Obstacle {
   gfx: Phaser.GameObjects.Rectangle;
@@ -22,6 +24,21 @@ interface Collectible {
 
 export default class BlockRacerScene extends Phaser.Scene {
   private playerData: any = {};
+  private worldId = 0;
+
+  // Question system
+  private questionPool: Question[] = [];
+  private questionPoolIdx = 0;
+  private qPhase: 'racing' | 'question' | 'reveal' = 'racing';
+  private qOverlay!: Phaser.GameObjects.Container;
+  private qText!: Phaser.GameObjects.Text;
+  private qTimerText!: Phaser.GameObjects.Text;
+  private qTimerBar!: Phaser.GameObjects.Rectangle;
+  private qOptionBtns: Phaser.GameObjects.Container[] = [];
+  private currentQ: Question | null = null;
+  private qTimerEvent: Phaser.Time.TimerEvent | null = null;
+  private qTimerSec = 20;
+  private blocksUntilQuestion = 5;
 
   // Game state
   private score = 0;
@@ -67,6 +84,7 @@ export default class BlockRacerScene extends Phaser.Scene {
 
   init(data: any) {
     this.playerData = data?.playerData || {};
+    this.worldId = data?.worldId ?? 0;
     this.score = 0;
     this.lives = 3;
     this.blocksCollected = 0;
@@ -83,6 +101,17 @@ export default class BlockRacerScene extends Phaser.Scene {
     this.upPressed = false;
     this.downPressed = false;
     this.laneTransitioning = false;
+    this.qPhase = 'racing';
+    this.questionPoolIdx = 0;
+    this.blocksUntilQuestion = 5;
+    // Build question pool
+    if (this.worldId) {
+      const world = WORLDS.find(w => w.id === this.worldId);
+      this.questionPool = world ? [...world.questions].sort(() => Math.random() - 0.5)
+        : WORLDS.flatMap(w => w.questions).sort(() => Math.random() - 0.5);
+    } else {
+      this.questionPool = WORLDS.flatMap(w => w.questions).sort(() => Math.random() - 0.5);
+    }
   }
 
   create() {
@@ -101,9 +130,20 @@ export default class BlockRacerScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5);
 
-    this.time.delayedCall(1200, () => {
-      countdown.destroy();
-    });
+    this.time.delayedCall(1200, () => { countdown.destroy(); });
+
+    // Question overlay (hidden initially)
+    this.qOverlay = this.add.container(0, 0).setDepth(30).setVisible(false);
+    const qBg = this.add.rectangle(W / 2, H / 2, W - 20, H * 0.6, 0x04060f, 0.97).setStrokeStyle(2, 0x00d4ff, 0.8);
+    this.qText = this.add.text(W / 2, H / 2 - H * 0.22, '', {
+      fontFamily: 'Share Tech Mono', fontSize: '11px', color: '#ffffff',
+      wordWrap: { width: W - 50 }, align: 'center',
+    }).setOrigin(0.5, 0);
+    this.qTimerText = this.add.text(W / 2, H / 2 - H * 0.3, '20', {
+      fontFamily: 'Orbitron', fontSize: '18px', color: '#00d4ff',
+    }).setOrigin(0.5);
+    this.qTimerBar = this.add.rectangle(W / 2, H / 2 - H * 0.27, W - 40, 5, 0x00d4ff);
+    this.qOverlay.add([qBg, this.qText, this.qTimerText, this.qTimerBar]);
   }
 
   private drawBackground(W: number, H: number) {
@@ -303,8 +343,89 @@ export default class BlockRacerScene extends Phaser.Scene {
     });
   }
 
+  private triggerQuestion() {
+    if (this.qPhase !== 'racing' || this.questionPool.length === 0) return;
+    if (this.questionPoolIdx >= this.questionPool.length) {
+      this.questionPoolIdx = 0;
+      this.questionPool = this.questionPool.sort(() => Math.random() - 0.5);
+    }
+    this.currentQ = this.questionPool[this.questionPoolIdx++];
+    this.qPhase = 'question';
+    const W = this.cameras.main.width;
+    const H = this.cameras.main.height;
+
+    this.qText.setText(this.currentQ.text);
+    this.qTimerText.setText('20').setColor('#00d4ff');
+    this.qTimerBar.setScale(1, 1);
+    this.qOverlay.setVisible(true);
+
+    // Build option buttons
+    this.qOptionBtns.forEach(b => b.destroy());
+    this.qOptionBtns = [];
+    this.currentQ.options.forEach((opt, i) => {
+      const by = H / 2 - H * 0.05 + i * 44;
+      const bg = this.add.rectangle(W / 2, by, W - 30, 38, 0x0d1117).setStrokeStyle(1, 0x00d4ff, 0.4).setDepth(31).setInteractive({ cursor: 'pointer' });
+      const txt = this.add.text(W / 2, by, `${String.fromCharCode(65 + i)}. ${opt}`, {
+        fontFamily: 'Share Tech Mono', fontSize: '9px', color: '#cccccc',
+        wordWrap: { width: W - 50 }, align: 'center',
+      }).setOrigin(0.5).setDepth(32);
+      bg.on('pointerover', () => bg.setFillStyle(0x1a2a3a));
+      bg.on('pointerout', () => bg.setFillStyle(0x0d1117));
+      bg.on('pointerdown', () => this.submitRacerAnswer(i));
+      this.qOptionBtns.push(this.add.container(0, 0, [bg, txt]).setDepth(31));
+    });
+
+    this.qTimerSec = 20;
+    if (this.qTimerEvent) this.qTimerEvent.destroy();
+    this.qTimerEvent = this.time.addEvent({
+      delay: 1000,
+      repeat: 19,
+      callback: () => {
+        this.qTimerSec--;
+        this.qTimerText.setText(`${this.qTimerSec}`);
+        this.qTimerBar.setScale(this.qTimerSec / 20, 1);
+        if (this.qTimerSec <= 5) this.qTimerText.setColor('#ff2244');
+        if (this.qTimerSec <= 0) this.submitRacerAnswer(-1);
+      },
+    });
+  }
+
+  private submitRacerAnswer(idx: number) {
+    if (this.qPhase !== 'question' || !this.currentQ) return;
+    if (this.qTimerEvent) this.qTimerEvent.destroy();
+    this.qPhase = 'reveal';
+    const correct = idx === this.currentQ.correctIndex;
+
+    this.qOptionBtns.forEach((btn, i) => {
+      const bg = btn.list[0] as Phaser.GameObjects.Rectangle;
+      if (i === this.currentQ!.correctIndex) bg.setFillStyle(0x003320);
+      else if (i === idx) bg.setFillStyle(0x330010);
+    });
+
+    this.time.delayedCall(1000, () => {
+      this.qOptionBtns.forEach(b => b.destroy());
+      this.qOptionBtns = [];
+      this.qOverlay.setVisible(false);
+      this.qPhase = 'racing';
+      if (correct) {
+        // Speed boost for 3s
+        const oldSpeed = this.speed;
+        this.speed = Math.min(500, this.speed + 80);
+        this.score += 200;
+        this.showFloatingText(this.ship.x, this.ship.y - 40, '✓ SPEED BOOST!', '#00d4ff');
+        this.time.delayedCall(3000, () => { this.speed = oldSpeed; });
+      } else {
+        this.lives--;
+        this.updateLivesDisplay();
+        this.showFloatingText(this.ship.x, this.ship.y - 40, '✗ -1 LIFE', '#ff2244');
+        if (this.lives <= 0) this.triggerGameOver();
+      }
+      this.blocksUntilQuestion = 5;
+    });
+  }
+
   update(_time: number, delta: number) {
-    if (this.gameOver) return;
+    if (this.gameOver || this.qPhase !== 'racing') return;
 
     // Keyboard input
     const upNow = this.upKey.isDown || this.wKey.isDown;
@@ -386,6 +507,10 @@ export default class BlockRacerScene extends Phaser.Scene {
           if (col.type === 'VALID BLOCK') {
             this.blocksCollected++;
             this.showFloatingText(this.ship.x, this.ship.y - 30, `+${col.value} ✓ BLOCK #${400000 + this.blocksCollected}`, '#00d4ff');
+            this.blocksUntilQuestion--;
+            if (this.blocksUntilQuestion <= 0 && this.qPhase === 'racing') {
+              this.time.delayedCall(300, () => this.triggerQuestion());
+            }
           } else {
             this.showFloatingText(this.ship.x, this.ship.y - 30, `+${col.value} GAS`, '#ffb800');
           }
@@ -425,6 +550,7 @@ export default class BlockRacerScene extends Phaser.Scene {
     const xpGained = Math.min(200, this.blocksCollected * 15 + Math.floor(Math.max(0, this.timeRemaining) * 0.5));
     const cqtGained = !this.cqtEarned && this.blocksCollected >= 8 ? 5 : 0;
     this.showEndScreen('win', xpGained, cqtGained);
+    this.cqtEarned = true;
   }
 
   private triggerGameOver() {
@@ -475,9 +601,13 @@ export default class BlockRacerScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(11);
 
     this.time.delayedCall(3500, () => {
-      this.scene.stop();
-      this.scene.resume('OpenWorldScene');
-      OpenWorldScene.events.emit('minigame:complete', { xpGained, cqtGained, scene: 'BlockRacerScene', score: this.score });
+      if (this.scene.isActive('OpenWorldScene')) {
+        this.scene.stop();
+        this.scene.resume('OpenWorldScene');
+        OpenWorldScene.events.emit('minigame:complete', { xpGained, cqtGained, scene: 'BlockRacerScene', score: this.score });
+      } else {
+        this.game.events.emit('racer:exit', { won: outcome === 'win', score: this.score, blocksCollected: this.blocksCollected, xpGained, worldId: this.worldId });
+      }
     });
   }
 }

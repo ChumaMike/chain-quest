@@ -2,14 +2,16 @@ import Phaser from 'phaser';
 import { WORLDS } from '../../data/curriculum';
 import type { Question } from '../../types';
 
-// Flatten all questions from all worlds for the duel pool
-function buildQuestionPool(): Question[] {
+// Build question pool filtered to worldId when provided
+function buildQuestionPool(worldId?: number): Question[] {
+  if (worldId) {
+    const world = WORLDS.find(w => w.id === worldId);
+    if (world) return [...world.questions].sort(() => Math.random() - 0.5);
+  }
   const pool: Question[] = [];
   for (const world of WORLDS) {
     for (const q of world.questions) {
-      if (q.difficulty === 'easy' || q.difficulty === 'medium') {
-        pool.push(q);
-      }
+      if (q.difficulty === 'easy' || q.difficulty === 'medium') pool.push(q);
     }
   }
   return pool.sort(() => Math.random() - 0.5);
@@ -26,6 +28,7 @@ type DuelPhase = 'countdown' | 'question' | 'reveal' | 'ended';
 
 export default class DuelScene extends Phaser.Scene {
   private playerData: any = {};
+  private worldId = 0;
 
   // ─── State ───────────────────────────────────────────────────────────────
   private playerHP = MAX_HP;
@@ -62,6 +65,7 @@ export default class DuelScene extends Phaser.Scene {
 
   init(data: any) {
     this.playerData = data || {};
+    this.worldId = data?.worldId ?? 0;
   }
 
   create() {
@@ -131,7 +135,7 @@ export default class DuelScene extends Phaser.Scene {
     this.input.on('pointerdown', this.handleBuzzIn, this);
 
     // Build question pool
-    this.questions = buildQuestionPool().slice(0, TOTAL_QUESTIONS);
+    this.questions = buildQuestionPool(this.worldId).slice(0, TOTAL_QUESTIONS);
 
     // Start countdown
     this.startCountdown();
@@ -375,7 +379,8 @@ export default class DuelScene extends Phaser.Scene {
     }).setOrigin(0.5);
     exitBg.on('pointerover', () => exitBg.setFillStyle(0x003344));
     exitBg.on('pointerdown', () => {
-      this.game.events.emit('duel:exit', { playerWon, playerHP: this.playerHP, opponentHP: this.opponentHP });
+      const score = playerWon ? 4000 + this.playerHP * 10 : this.questionIndex * 300;
+      this.game.events.emit('duel:exit', { playerWon, playerHP: this.playerHP, opponentHP: this.opponentHP, worldId: this.worldId, score, xpGained: Math.round(score / 10) });
     });
   }
 

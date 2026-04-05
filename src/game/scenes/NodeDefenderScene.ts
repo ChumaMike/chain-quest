@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import OpenWorldScene from './OpenWorldScene';
+import { WORLDS } from '../../data/curriculum';
+import type { Question } from '../../types';
 
 type ThreatType = '51% ATTACK' | 'SYBIL SWARM' | 'PHISHING' | 'REPLAY' | 'APT';
 type DefenseType = 'firewall' | 'pow' | 'pos' | 'multisig' | 'zk';
@@ -49,6 +51,20 @@ const WAVE_CONFIGS = [
 
 export default class NodeDefenderScene extends Phaser.Scene {
   private playerData: any = {};
+  private worldId = 0;
+
+  // Question system
+  private questionPool: Question[] = [];
+  private questionPoolIdx = 0;
+  private qPhase: 'game' | 'question' | 'reveal' = 'game';
+  private qOverlay!: Phaser.GameObjects.Container;
+  private qText!: Phaser.GameObjects.Text;
+  private qTimerText!: Phaser.GameObjects.Text;
+  private qTimerBar!: Phaser.GameObjects.Rectangle;
+  private qOptionBtns: Phaser.GameObjects.Container[] = [];
+  private currentQ: Question | null = null;
+  private qTimerEvent: Phaser.Time.TimerEvent | null = null;
+  private qTimerSec = 20;
 
   // Game state
   private nodeHP = 100;
@@ -87,6 +103,16 @@ export default class NodeDefenderScene extends Phaser.Scene {
 
   init(data: any) {
     this.playerData = data?.playerData || {};
+    this.worldId = data?.worldId ?? 0;
+    this.qPhase = 'game';
+    this.questionPoolIdx = 0;
+    if (this.worldId) {
+      const w = WORLDS.find(x => x.id === this.worldId);
+      this.questionPool = w ? [...w.questions].sort(() => Math.random() - 0.5)
+        : WORLDS.flatMap(x => x.questions).sort(() => Math.random() - 0.5);
+    } else {
+      this.questionPool = WORLDS.flatMap(x => x.questions).sort(() => Math.random() - 0.5);
+    }
     this.nodeHP = 100;
     this.consensusPoints = 100;
     this.wave = 0;
@@ -116,6 +142,22 @@ export default class NodeDefenderScene extends Phaser.Scene {
     this.createDefensePanel(W, H);
     this.setupInput();
     this.startBuildPhase();
+
+    // Question overlay (hidden initially)
+    this.qOverlay = this.add.container(0, 0).setDepth(40).setVisible(false);
+    const qBg = this.add.rectangle(W / 2, H / 2, W - 20, H * 0.65, 0x04060f, 0.97).setStrokeStyle(2, 0xff8800, 0.8);
+    const qTitle = this.add.text(W / 2, H / 2 - H * 0.34, '⚡ BETWEEN WAVES — ANSWER TO EARN CP', {
+      fontFamily: 'Orbitron', fontSize: '9px', color: '#ff8800',
+    }).setOrigin(0.5);
+    this.qText = this.add.text(W / 2, H / 2 - H * 0.24, '', {
+      fontFamily: 'Share Tech Mono', fontSize: '11px', color: '#ffffff',
+      wordWrap: { width: W - 50 }, align: 'center',
+    }).setOrigin(0.5, 0);
+    this.qTimerText = this.add.text(W / 2, H / 2 - H * 0.30, '20', {
+      fontFamily: 'Orbitron', fontSize: '18px', color: '#ff8800',
+    }).setOrigin(0.5);
+    this.qTimerBar = this.add.rectangle(W / 2, H / 2 - H * 0.28, W - 40, 5, 0xff8800);
+    this.qOverlay.add([qBg, qTitle, this.qText, this.qTimerText, this.qTimerBar]);
   }
 
   private drawBackground(W: number, H: number) {
@@ -467,9 +509,92 @@ export default class NodeDefenderScene extends Phaser.Scene {
         this.phaseText.setText(`Wave ${this.wave} cleared! +50 CP`);
         this.phaseText.setColor('#00ff88');
         this.refreshDefensePanel(this.cameras.main.width);
-        this.time.delayedCall(2000, () => { if (!this.gameOver) this.startBuildPhase(); });
+        // Trigger question between waves, then start build phase
+        this.time.delayedCall(800, () => {
+          if (!this.gameOver) this.triggerWaveQuestion();
+        });
       }
     }
+  }
+
+  private triggerWaveQuestion() {
+    if (this.questionPool.length === 0) { this.startBuildPhase(); return; }
+    if (this.questionPoolIdx >= this.questionPool.length) {
+      this.questionPoolIdx = 0;
+      this.questionPool = this.questionPool.sort(() => Math.random() - 0.5);
+    }
+    this.currentQ = this.questionPool[this.questionPoolIdx++];
+    this.qPhase = 'question';
+    const W = this.cameras.main.width;
+    const H = this.cameras.main.height;
+
+    this.qText.setText(this.currentQ.text);
+    this.qTimerText.setText('20').setColor('#ff8800');
+    this.qTimerBar.setScale(1, 1);
+    this.qOverlay.setVisible(true);
+
+    this.qOptionBtns.forEach(b => b.destroy());
+    this.qOptionBtns = [];
+    this.currentQ.options.forEach((opt, i) => {
+      const by = H / 2 - H * 0.04 + i * 44;
+      const bg = this.add.rectangle(W / 2, by, W - 30, 38, 0x0d0d0d).setStrokeStyle(1, 0xff8800, 0.5).setDepth(41).setInteractive({ cursor: 'pointer' });
+      const txt = this.add.text(W / 2, by, `${String.fromCharCode(65 + i)}. ${opt}`, {
+        fontFamily: 'Share Tech Mono', fontSize: '9px', color: '#cccccc',
+        wordWrap: { width: W - 50 }, align: 'center',
+      }).setOrigin(0.5).setDepth(42);
+      bg.on('pointerover', () => bg.setFillStyle(0x1a1200));
+      bg.on('pointerout', () => bg.setFillStyle(0x0d0d0d));
+      bg.on('pointerdown', () => this.submitWaveAnswer(i));
+      this.qOptionBtns.push(this.add.container(0, 0, [bg, txt]).setDepth(41));
+    });
+
+    this.qTimerSec = 20;
+    if (this.qTimerEvent) this.qTimerEvent.destroy();
+    this.qTimerEvent = this.time.addEvent({
+      delay: 1000,
+      repeat: 19,
+      callback: () => {
+        this.qTimerSec--;
+        this.qTimerText.setText(`${this.qTimerSec}`);
+        this.qTimerBar.setScale(this.qTimerSec / 20, 1);
+        if (this.qTimerSec <= 5) this.qTimerText.setColor('#ff2244');
+        if (this.qTimerSec <= 0) this.submitWaveAnswer(-1);
+      },
+    });
+  }
+
+  private submitWaveAnswer(idx: number) {
+    if (this.qPhase !== 'question' || !this.currentQ) return;
+    if (this.qTimerEvent) this.qTimerEvent.destroy();
+    this.qPhase = 'reveal';
+    const correct = idx === this.currentQ.correctIndex;
+
+    this.qOptionBtns.forEach((btn, i) => {
+      const bg = btn.list[0] as Phaser.GameObjects.Rectangle;
+      if (i === this.currentQ!.correctIndex) bg.setFillStyle(0x003320);
+      else if (i === idx) bg.setFillStyle(0x330010);
+    });
+
+    this.time.delayedCall(1200, () => {
+      this.qOptionBtns.forEach(b => b.destroy());
+      this.qOptionBtns = [];
+      this.qOverlay.setVisible(false);
+      this.qPhase = 'game';
+      if (correct) {
+        this.consensusPoints = Math.min(200, this.consensusPoints + 30);
+        this.cpText.setText(`CP: ${this.consensusPoints}`);
+        this.refreshDefensePanel(this.cameras.main.width);
+        // HP repair
+        this.nodeHP = Math.min(100, this.nodeHP + 10);
+        this.updateNodeHPBar();
+      } else {
+        // Next wave spawns one extra threat (handled via flag, startBuildPhase reads it)
+        this.consensusPoints = Math.max(0, this.consensusPoints - 15);
+        this.cpText.setText(`CP: ${this.consensusPoints}`);
+        this.refreshDefensePanel(this.cameras.main.width);
+      }
+      if (!this.gameOver) this.startBuildPhase();
+    });
   }
 
   private endDefeat() {
@@ -527,9 +652,14 @@ export default class NodeDefenderScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(11);
 
     this.time.delayedCall(4000, () => {
-      this.scene.stop();
-      this.scene.resume('OpenWorldScene');
-      OpenWorldScene.events.emit('minigame:complete', { xpGained, cqtGained, scene: 'NodeDefenderScene', wavesCleared: this.wavesCleared });
+      if (this.scene.isActive('OpenWorldScene')) {
+        this.scene.stop();
+        this.scene.resume('OpenWorldScene');
+        OpenWorldScene.events.emit('minigame:complete', { xpGained, cqtGained, scene: 'NodeDefenderScene', wavesCleared: this.wavesCleared });
+      } else {
+        const score = this.wavesCleared * 600 + Math.floor(this.nodeHP * 20);
+        this.game.events.emit('defender:exit', { won: outcome === 'win', score, wavesCleared: this.wavesCleared, xpGained, worldId: this.worldId });
+      }
     });
   }
 }

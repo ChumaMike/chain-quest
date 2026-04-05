@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import OpenWorldScene from './OpenWorldScene';
+import { WORLDS } from '../../data/curriculum';
+import type { Question } from '../../types';
 
 // A simple deterministic pseudo-hash that looks like a hex string
 function pseudoHash(data: string, nonce: number): string {
@@ -40,6 +42,21 @@ const BLOCK_DATA = [
 
 export default class HashPuzzleScene extends Phaser.Scene {
   private playerData: any = {};
+  private worldId = 0;
+
+  // Question system
+  private questionPool: Question[] = [];
+  private questionPoolIdx = 0;
+  private qPhase: 'puzzle' | 'question' | 'reveal' = 'puzzle';
+  private qOverlay!: Phaser.GameObjects.Container;
+  private qText!: Phaser.GameObjects.Text;
+  private qTimerText!: Phaser.GameObjects.Text;
+  private qTimerBar!: Phaser.GameObjects.Rectangle;
+  private qOptionBtns: Phaser.GameObjects.Container[] = [];
+  private currentQ: Question | null = null;
+  private qTimerEvent: Phaser.Time.TimerEvent | null = null;
+  private qTimerSec = 20;
+  private pendingNextPuzzle = false;
 
   // Puzzle state
   private puzzleIndex = 0;
@@ -74,6 +91,17 @@ export default class HashPuzzleScene extends Phaser.Scene {
 
   init(data: any) {
     this.playerData = data?.playerData || {};
+    this.worldId = data?.worldId ?? 0;
+    this.qPhase = 'puzzle';
+    this.questionPoolIdx = 0;
+    this.pendingNextPuzzle = false;
+    if (this.worldId) {
+      const w = WORLDS.find(x => x.id === this.worldId);
+      this.questionPool = w ? [...w.questions].sort(() => Math.random() - 0.5)
+        : WORLDS.flatMap(x => x.questions).sort(() => Math.random() - 0.5);
+    } else {
+      this.questionPool = WORLDS.flatMap(x => x.questions).sort(() => Math.random() - 0.5);
+    }
     this.puzzleIndex = 0;
     this.nonce = 1000;
     this.targetZeros = 1;
@@ -98,6 +126,22 @@ export default class HashPuzzleScene extends Phaser.Scene {
     this.createHUD(W, H);
     this.createChainDisplay(W, H);
     this.loadPuzzle();
+
+    // Question overlay (hidden initially)
+    this.qOverlay = this.add.container(0, 0).setDepth(30).setVisible(false);
+    const qBg = this.add.rectangle(W / 2, H / 2, W - 20, H * 0.65, 0x04060f, 0.97).setStrokeStyle(2, 0x8b5cf6, 0.8);
+    this.qText = this.add.text(W / 2, H / 2 - H * 0.24, '', {
+      fontFamily: 'Share Tech Mono', fontSize: '11px', color: '#ffffff',
+      wordWrap: { width: W - 50 }, align: 'center',
+    }).setOrigin(0.5, 0);
+    this.qTimerText = this.add.text(W / 2, H / 2 - H * 0.31, '20', {
+      fontFamily: 'Orbitron', fontSize: '18px', color: '#8b5cf6',
+    }).setOrigin(0.5);
+    this.qTimerBar = this.add.rectangle(W / 2, H / 2 - H * 0.28, W - 40, 5, 0x8b5cf6);
+    const qTitle = this.add.text(W / 2, H / 2 - H * 0.34, '📚 KNOWLEDGE CHECK', {
+      fontFamily: 'Orbitron', fontSize: '10px', color: '#8b5cf6',
+    }).setOrigin(0.5);
+    this.qOverlay.add([qBg, qTitle, this.qText, this.qTimerText, this.qTimerBar]);
   }
 
   private drawBackground(W: number, H: number) {
@@ -396,21 +440,102 @@ export default class HashPuzzleScene extends Phaser.Scene {
     this.autoMining = false;
     this.autoMineLed.setFillStyle(0x555555);
 
-    // Next puzzle after brief pause
+    // Show question after brief pause, then next puzzle
     this.time.delayedCall(1000, () => {
       this.puzzleIndex++;
+      this.pendingNextPuzzle = true;
       if (this.puzzleIndex >= BLOCK_DATA.length) {
         this.endGame('win');
       } else {
-        this.loadPuzzle();
-        this.updateHashDisplay();
-        this.updateBlockFields();
+        this.triggerHashQuestion();
       }
     });
   }
 
+  private triggerHashQuestion() {
+    if (this.questionPool.length === 0) { this.loadNextPuzzle(); return; }
+    if (this.questionPoolIdx >= this.questionPool.length) {
+      this.questionPoolIdx = 0;
+      this.questionPool = this.questionPool.sort(() => Math.random() - 0.5);
+    }
+    this.currentQ = this.questionPool[this.questionPoolIdx++];
+    this.qPhase = 'question';
+    const W = this.cameras.main.width;
+    const H = this.cameras.main.height;
+
+    this.qText.setText(this.currentQ.text);
+    this.qTimerText.setText('20').setColor('#8b5cf6');
+    this.qTimerBar.setScale(1, 1);
+    this.qOverlay.setVisible(true);
+
+    this.qOptionBtns.forEach(b => b.destroy());
+    this.qOptionBtns = [];
+    this.currentQ.options.forEach((opt, i) => {
+      const by = H / 2 - H * 0.04 + i * 44;
+      const bg = this.add.rectangle(W / 2, by, W - 30, 38, 0x0d0022).setStrokeStyle(1, 0x8b5cf6, 0.5).setDepth(31).setInteractive({ cursor: 'pointer' });
+      const txt = this.add.text(W / 2, by, `${String.fromCharCode(65 + i)}. ${opt}`, {
+        fontFamily: 'Share Tech Mono', fontSize: '9px', color: '#cccccc',
+        wordWrap: { width: W - 50 }, align: 'center',
+      }).setOrigin(0.5).setDepth(32);
+      bg.on('pointerover', () => bg.setFillStyle(0x1a0033));
+      bg.on('pointerout', () => bg.setFillStyle(0x0d0022));
+      bg.on('pointerdown', () => this.submitHashAnswer(i));
+      this.qOptionBtns.push(this.add.container(0, 0, [bg, txt]).setDepth(31));
+    });
+
+    this.qTimerSec = 20;
+    if (this.qTimerEvent) this.qTimerEvent.destroy();
+    this.qTimerEvent = this.time.addEvent({
+      delay: 1000,
+      repeat: 19,
+      callback: () => {
+        this.qTimerSec--;
+        this.qTimerText.setText(`${this.qTimerSec}`);
+        this.qTimerBar.setScale(this.qTimerSec / 20, 1);
+        if (this.qTimerSec <= 5) this.qTimerText.setColor('#ff2244');
+        if (this.qTimerSec <= 0) this.submitHashAnswer(-1);
+      },
+    });
+  }
+
+  private submitHashAnswer(idx: number) {
+    if (this.qPhase !== 'question' || !this.currentQ) return;
+    if (this.qTimerEvent) this.qTimerEvent.destroy();
+    this.qPhase = 'reveal';
+    const correct = idx === this.currentQ.correctIndex;
+
+    this.qOptionBtns.forEach((btn, i) => {
+      const bg = btn.list[0] as Phaser.GameObjects.Rectangle;
+      if (i === this.currentQ!.correctIndex) bg.setFillStyle(0x003320);
+      else if (i === idx) bg.setFillStyle(0x330010);
+    });
+
+    this.time.delayedCall(1200, () => {
+      this.qOptionBtns.forEach(b => b.destroy());
+      this.qOptionBtns = [];
+      this.qOverlay.setVisible(false);
+      this.qPhase = 'puzzle';
+      if (correct) {
+        // Bonus: give extra time on next puzzle
+        this.totalTimeBonus += 10;
+        this.timeLeft = Math.min(this.timePerPuzzle, this.timeLeft + 15);
+      } else {
+        // Penalty: less time
+        this.timeLeft = Math.max(5, this.timeLeft - 10);
+      }
+      this.loadNextPuzzle();
+    });
+  }
+
+  private loadNextPuzzle() {
+    this.pendingNextPuzzle = false;
+    this.loadPuzzle();
+    this.updateHashDisplay();
+    this.updateBlockFields();
+  }
+
   update(_time: number, delta: number) {
-    if (this.gameOver) return;
+    if (this.gameOver || this.qPhase !== 'puzzle' || this.pendingNextPuzzle) return;
 
     const dt = delta / 1000;
     this.timeLeft -= dt;
@@ -419,7 +544,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
     if (this.timeLeft <= 10) this.timerText.setColor('#ff2244');
 
     if (this.timeLeft <= 0) {
-      // Puzzle failed — move on
+      // Puzzle timed out — move on without question
       this.puzzleIndex++;
       this.autoMining = false;
       this.autoMineLed.setFillStyle(0x555555);
@@ -427,9 +552,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
         this.endGame('lose');
         return;
       }
-      this.loadPuzzle();
-      this.updateHashDisplay();
-      this.updateBlockFields();
+      this.loadNextPuzzle();
       return;
     }
 
@@ -492,9 +615,14 @@ export default class HashPuzzleScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(11);
 
     this.time.delayedCall(4000, () => {
-      this.scene.stop();
-      this.scene.resume('OpenWorldScene');
-      OpenWorldScene.events.emit('minigame:complete', { xpGained, cqtGained, scene: 'HashPuzzleScene', solved: this.puzzlesSolved });
+      if (this.scene.isActive('OpenWorldScene')) {
+        this.scene.stop();
+        this.scene.resume('OpenWorldScene');
+        OpenWorldScene.events.emit('minigame:complete', { xpGained, cqtGained, scene: 'HashPuzzleScene', solved: this.puzzlesSolved });
+      } else {
+        const score = this.puzzlesSolved * 500 + this.totalTimeBonus * 5;
+        this.game.events.emit('hash:exit', { won: outcome === 'win', score, puzzlesSolved: this.puzzlesSolved, xpGained, worldId: this.worldId });
+      }
     });
   }
 }

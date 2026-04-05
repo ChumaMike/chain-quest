@@ -2,7 +2,11 @@ import Phaser from 'phaser';
 import { WORLDS } from '../../data/curriculum';
 import type { Question } from '../../types';
 
-function buildQuestionPool(): Question[] {
+function buildQuestionPool(worldId?: number): Question[] {
+  if (worldId) {
+    const world = WORLDS.find(w => w.id === worldId);
+    if (world) return [...world.questions].sort(() => Math.random() - 0.5);
+  }
   const pool: Question[] = [];
   for (const world of WORLDS) {
     for (const q of world.questions) pool.push(q);
@@ -25,6 +29,7 @@ type JumperPhase = 'playing' | 'question' | 'answer_reveal' | 'ended';
 
 export default class JumperScene extends Phaser.Scene {
   private playerData: any = {};
+  private worldId = 0;
 
   // ─── State ───────────────────────────────────────────────────────────────
   private lives = 3;
@@ -63,6 +68,7 @@ export default class JumperScene extends Phaser.Scene {
 
   init(data: any) {
     this.playerData = data || {};
+    this.worldId = data?.worldId ?? 0;
   }
 
   create() {
@@ -135,8 +141,8 @@ export default class JumperScene extends Phaser.Scene {
     this.qTimerBar = this.add.rectangle(W / 2, 52, W - 40, 6, 0xf59e0b).setScrollFactor(0);
     this.qOverlay.add([overlayBg, this.qText, this.qTimerText, this.qTimerBar]);
 
-    // Question pool
-    this.questionPool = buildQuestionPool();
+    // Question pool (filtered to current world)
+    this.questionPool = buildQuestionPool(this.worldId);
 
     // Auto-scroll camera slightly upward
     this.time.addEvent({
@@ -203,7 +209,7 @@ export default class JumperScene extends Phaser.Scene {
   private triggerQuestion() {
     if (this.questionPoolIdx >= this.questionPool.length) {
       this.questionPoolIdx = 0;
-      this.questionPool = buildQuestionPool();
+      this.questionPool = buildQuestionPool(this.worldId);
     }
     this.currentQ = this.questionPool[this.questionPoolIdx++];
     this.phase = 'question';
@@ -349,7 +355,8 @@ export default class JumperScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '13px', color: '#00d4ff',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(31);
     exitBg.on('pointerdown', () => {
-      this.game.events.emit('jumper:exit', { won, lives: this.lives });
+      const score = this.platformsLanded * 300 + this.lives * 500;
+      this.game.events.emit('jumper:exit', { won, lives: this.lives, worldId: this.worldId, score, xpGained: Math.round(score / 10) });
     });
   }
 }
