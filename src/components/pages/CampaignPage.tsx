@@ -26,6 +26,7 @@ export default function CampaignPage() {
       return;
     }
     const cfg = WORLD_MINI_GAME[worldId];
+    if (!cfg) return;
     navigate(`${cfg.route}?world=${worldId}`);
   };
 

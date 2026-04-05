@@ -74,6 +74,7 @@ export default class NodeDefenderScene extends Phaser.Scene {
   private buildTimeLeft = 20;
   private gameOver = false;
   private wavesCleared = 0;
+  private waveSpawned = false; // true only after all threats for current wave have been queued
 
   // Geometry
   private centerX = 0;
@@ -126,6 +127,7 @@ export default class NodeDefenderScene extends Phaser.Scene {
     this.unlockedDefenses = ['firewall'];
     this.selectedDefense = 'firewall';
     this.buildTimer = 0;
+    this.waveSpawned = false;
   }
 
   create() {
@@ -341,6 +343,7 @@ export default class NodeDefenderScene extends Phaser.Scene {
 
   private startBuildPhase() {
     this.phase = 'build';
+    this.waveSpawned = false;
     this.buildTimeLeft = 20;
     this.buildTimer = 0;
     const waveConfig = WAVE_CONFIGS[this.wave];
@@ -364,18 +367,24 @@ export default class NodeDefenderScene extends Phaser.Scene {
 
   private startWave() {
     this.phase = 'defend';
+    this.waveSpawned = false;
     this.buildTimerText.setVisible(false);
     this.phaseText.setText(`WAVE ${this.wave + 1} — DEFEND THE NODE!`);
     this.phaseText.setColor('#ff2244');
 
     const config = WAVE_CONFIGS[this.wave];
+    let totalSpawns = 0;
     for (const threatDef of config.threats) {
       for (let i = 0; i < threatDef.count; i++) {
+        totalSpawns++;
         this.time.delayedCall(i * (1200 / (threatDef.count || 1)), () => {
           if (!this.gameOver) this.spawnThreat(threatDef.type, threatDef.hp, threatDef.speed, threatDef.damage);
         });
       }
     }
+    // Mark wave as fully spawned after the last staggered spawn delay
+    const lastDelay = (totalSpawns - 1) * (1200 / (config.threats[0]?.count || 1)) + 200;
+    this.time.delayedCall(lastDelay, () => { this.waveSpawned = true; });
   }
 
   private spawnThreat(type: ThreatType, hp: number, speed: number, damage: number) {
@@ -496,8 +505,8 @@ export default class NodeDefenderScene extends Phaser.Scene {
       }
     }
 
-    // Check wave complete
-    if (this.threats.length === 0) {
+    // Check wave complete — only after all spawns have been queued
+    if (this.waveSpawned && this.threats.length === 0) {
       this.wavesCleared = this.wave + 1;
       if (this.wave >= WAVE_CONFIGS.length - 1) {
         this.endVictory();

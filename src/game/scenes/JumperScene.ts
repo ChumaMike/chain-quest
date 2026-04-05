@@ -69,6 +69,17 @@ export default class JumperScene extends Phaser.Scene {
   init(data: any) {
     this.playerData = data || {};
     this.worldId = data?.worldId ?? 0;
+    // Reset all state so PLAY AGAIN works correctly
+    this.lives = 3;
+    this.platformsLanded = 0;
+    this.phase = 'playing';
+    this.currentQ = null;
+    this.questionPoolIdx = 0;
+    this.answerTimerSec = ANSWER_TIME;
+    this.usedBoost = false;
+    this.optionBtns = [];
+    if (this.answerTimerEvent) { this.answerTimerEvent.destroy(); this.answerTimerEvent = null; }
+    this.questionPool = buildQuestionPool(this.worldId);
   }
 
   create() {

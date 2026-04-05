@@ -403,6 +403,7 @@ export default class HashPuzzleScene extends Phaser.Scene {
   }
 
   private confirmBlock() {
+    this.pendingNextPuzzle = true; // guard update() immediately so timer doesn't tick during transition
     this.puzzlesSolved++;
     this.totalTimeBonus += Math.floor(this.timeLeft);
 
@@ -443,7 +444,6 @@ export default class HashPuzzleScene extends Phaser.Scene {
     // Show question after brief pause, then next puzzle
     this.time.delayedCall(1000, () => {
       this.puzzleIndex++;
-      this.pendingNextPuzzle = true;
       if (this.puzzleIndex >= BLOCK_DATA.length) {
         this.endGame('win');
       } else {

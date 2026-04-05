@@ -24,16 +24,18 @@ export default function BlockRacerPage() {
   const [result, setResult] = useState<{ won: boolean; score: number; blocksCollected: number; xpGained: number } | null>(null);
   const [started, setStarted] = useState(false);
 
+  // Load profile — fall back to empty object so start button is never permanently blocked
   useEffect(() => {
-    if (!user || !token) return;
+    if (!user || !token) { setProfile({}); return; }
     apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setProfile(data.profile));
+      .then(data => setProfile(data.profile ?? {}))
+      .catch(() => setProfile({}));
   }, [user, token]);
 
-  const startGame = () => {
-    if (!containerRef.current) return;
-    setStarted(true);
+  // Create Phaser game AFTER React renders the canvas div
+  useEffect(() => {
+    if (!started || !containerRef.current) return;
 
     const hero = HEROES.find(h => h.id === profile?.hero_class) || HEROES[0];
     const playerData = {
@@ -44,18 +46,15 @@ export default function BlockRacerPage() {
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
-      parent: 'racer-canvas',
+      parent: containerRef.current,
       width: 480,
       height: 640,
       backgroundColor: '#04060f',
-      scene: [BlockRacerScene],
       scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     });
     gameRef.current = game;
 
-    game.events.once('ready', () => {
-      game.scene.start('BlockRacerScene', { playerData, worldId });
-    });
+    game.scene.add('BlockRacerScene', BlockRacerScene, true, { playerData, worldId });
 
     game.events.on('racer:exit', (data: any) => {
       setResult(data);
@@ -64,12 +63,14 @@ export default function BlockRacerPage() {
         addXP(data.xpGained ?? 80);
       }
     });
-  };
 
-  const handleExit = () => {
-    if (gameRef.current) { gameRef.current.destroy(true); gameRef.current = null; }
-    navigate('/campaign');
-  };
+    return () => {
+      game.destroy(true);
+      gameRef.current = null;
+    };
+  }, [started]);
+
+  const handleExit = () => navigate('/campaign');
 
   if (result) {
     const defeatQuote = worldId ? KARABO_BOSS_DEFEAT[worldId] : null;
@@ -109,12 +110,12 @@ export default function BlockRacerPage() {
             <h1 className="font-orbitron font-black text-2xl text-neon-cyan mb-2">BLOCK RACER</h1>
             {world && <p className="text-slate-500 font-mono text-xs mb-3">{world.emoji} {world.name} — {world.topic}</p>}
             <p className="text-slate-400 font-mono text-sm mb-6 leading-relaxed">
-              Dodge invalid transactions and collect valid blocks racing down the chain.
-              Every 5 blocks, a question pops up — answer correctly for a speed boost!
+              Dodge invalid transactions, collect valid blocks.
+              Every 5 blocks a question pops up — answer correctly for a speed boost!
             </p>
             <div className="bg-dark-900 rounded-xl p-4 mb-6 text-left space-y-2">
               <div className="font-orbitron text-xs text-slate-500 mb-2">CONTROLS</div>
-              {['↑ / W — switch to faster lane', '↓ / S — switch to slower lane', 'Tap top/bottom half on mobile', 'Collect blue circles · Avoid red blocks'].map((r, i) => (
+              {['↑ / W — faster lane', '↓ / S — slower lane', 'Tap top/bottom half on mobile', 'Blue circles = valid blocks · Red = avoid'].map((r, i) => (
                 <div key={i} className="flex gap-2 items-center">
                   <span className="text-neon-cyan text-xs">✦</span>
                   <span className="font-mono text-xs text-slate-300">{r}</span>
@@ -123,7 +124,7 @@ export default function BlockRacerPage() {
             </div>
             <div className="flex gap-3 justify-center">
               <Button onClick={() => navigate('/campaign')} variant="ghost">← BACK</Button>
-              <Button onClick={startGame} variant="neon" disabled={!profile}>RACE!</Button>
+              <Button onClick={() => setStarted(true)} variant="neon" disabled={profile === null}>RACE!</Button>
             </div>
           </div>
         </div>
@@ -132,8 +133,8 @@ export default function BlockRacerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-grid flex items-center justify-center" style={{ background: '#04060f' }}>
-      <div id="racer-canvas" ref={containerRef} className="w-full max-w-lg" style={{ aspectRatio: '3/4' }} />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#04060f' }}>
+      <div ref={containerRef} className="w-full max-w-lg" style={{ aspectRatio: '3/4' }} />
     </div>
   );
 }

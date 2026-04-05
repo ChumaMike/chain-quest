@@ -66,6 +66,17 @@ export default class DuelScene extends Phaser.Scene {
   init(data: any) {
     this.playerData = data || {};
     this.worldId = data?.worldId ?? 0;
+    // Reset all state so PLAY AGAIN works correctly
+    this.playerHP = MAX_HP;
+    this.opponentHP = MAX_HP;
+    this.questionIndex = 0;
+    this.currentQ = null;
+    this.phase = 'countdown';
+    this.playerBuzzed = false;
+    this.timeRemaining = 25;
+    this.questions = buildQuestionPool(this.worldId);
+    if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    if (this.timerEvent) { this.timerEvent.destroy(); this.timerEvent = null; }
   }
 
   create() {

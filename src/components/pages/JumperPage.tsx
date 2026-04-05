@@ -24,16 +24,18 @@ export default function JumperPage() {
   const [result, setResult] = useState<{ won: boolean; lives: number } | null>(null);
   const [started, setStarted] = useState(false);
 
+  // Load profile — fall back to empty object so start button is never permanently blocked
   useEffect(() => {
-    if (!user || !token) return;
+    if (!user || !token) { setProfile({}); return; }
     apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setProfile(data.profile));
+      .then(data => setProfile(data.profile ?? {}))
+      .catch(() => setProfile({}));
   }, [user, token]);
 
-  const startGame = () => {
-    if (!containerRef.current) return;
-    setStarted(true);
+  // Create Phaser game AFTER React renders the canvas div
+  useEffect(() => {
+    if (!started || !containerRef.current) return;
 
     const hero = HEROES.find(h => h.id === profile?.hero_class) || HEROES[0];
     const playerData = {
@@ -44,25 +46,19 @@ export default function JumperPage() {
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
-      parent: 'jumper-canvas',
+      parent: containerRef.current,
       width: 400,
       height: 640,
       backgroundColor: '#04060f',
-      scene: [JumperScene],
       physics: {
         default: 'arcade',
         arcade: { gravity: { y: 0, x: 0 }, debug: false },
       },
-      scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-      },
+      scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     });
     gameRef.current = game;
 
-    game.events.once('ready', () => {
-      game.scene.start('JumperScene', { ...playerData, worldId });
-    });
+    game.scene.add('JumperScene', JumperScene, true, { ...playerData, worldId });
 
     game.events.on('jumper:exit', (data: any) => {
       setResult(data);
@@ -72,15 +68,14 @@ export default function JumperPage() {
         if (data.lives === 3) unlockAchievement('jumper_ace');
       }
     });
-  };
 
-  const handleExit = () => {
-    if (gameRef.current) {
-      gameRef.current.destroy(true);
+    return () => {
+      game.destroy(true);
       gameRef.current = null;
-    }
-    navigate('/campaign');
-  };
+    };
+  }, [started]);
+
+  const handleExit = () => navigate('/campaign');
 
   if (result) {
     const defeatQuote = worldId ? KARABO_BOSS_DEFEAT[worldId] : null;
@@ -144,7 +139,7 @@ export default function JumperPage() {
             </div>
             <div className="flex gap-3 justify-center">
               <Button onClick={() => navigate('/campaign')} variant="ghost">← BACK</Button>
-              <Button onClick={startGame} variant="neon" disabled={!profile}>
+              <Button onClick={() => setStarted(true)} variant="neon" disabled={profile === null}>
                 JUMP IN
               </Button>
             </div>
@@ -156,7 +151,7 @@ export default function JumperPage() {
 
   return (
     <div className="min-h-screen bg-grid flex items-center justify-center" style={{ background: '#04060f' }}>
-      <div id="jumper-canvas" ref={containerRef} className="w-full max-w-md" style={{ aspectRatio: '5/8' }} />
+      <div ref={containerRef} className="w-full max-w-md" style={{ aspectRatio: '5/8' }} />
     </div>
   );
 }

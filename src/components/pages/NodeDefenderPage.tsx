@@ -24,16 +24,18 @@ export default function NodeDefenderPage() {
   const [result, setResult] = useState<{ won: boolean; score: number; wavesCleared: number; xpGained: number } | null>(null);
   const [started, setStarted] = useState(false);
 
+  // Load profile — fall back to empty object so start button is never permanently blocked
   useEffect(() => {
-    if (!user || !token) return;
+    if (!user || !token) { setProfile({}); return; }
     apiFetch(`/api/profile/${user.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setProfile(data.profile));
+      .then(data => setProfile(data.profile ?? {}))
+      .catch(() => setProfile({}));
   }, [user, token]);
 
-  const startGame = () => {
-    if (!containerRef.current) return;
-    setStarted(true);
+  // Create Phaser game AFTER React renders the canvas div
+  useEffect(() => {
+    if (!started || !containerRef.current) return;
 
     const hero = HEROES.find(h => h.id === profile?.hero_class) || HEROES[0];
     const playerData = {
@@ -44,18 +46,15 @@ export default function NodeDefenderPage() {
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
-      parent: 'defender-canvas',
+      parent: containerRef.current,
       width: 480,
       height: 640,
       backgroundColor: '#04060f',
-      scene: [NodeDefenderScene],
       scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     });
     gameRef.current = game;
 
-    game.events.once('ready', () => {
-      game.scene.start('NodeDefenderScene', { playerData, worldId });
-    });
+    game.scene.add('NodeDefenderScene', NodeDefenderScene, true, { playerData, worldId });
 
     game.events.on('defender:exit', (data: any) => {
       setResult(data);
@@ -64,12 +63,14 @@ export default function NodeDefenderPage() {
         addXP(data.xpGained ?? 100);
       }
     });
-  };
 
-  const handleExit = () => {
-    if (gameRef.current) { gameRef.current.destroy(true); gameRef.current = null; }
-    navigate('/campaign');
-  };
+    return () => {
+      game.destroy(true);
+      gameRef.current = null;
+    };
+  }, [started]);
+
+  const handleExit = () => navigate('/campaign');
 
   if (result) {
     const defeatQuote = worldId ? KARABO_BOSS_DEFEAT[worldId] : null;
@@ -82,7 +83,7 @@ export default function NodeDefenderPage() {
               {result.won ? 'NODE SECURED!' : 'NODE COMPROMISED'}
             </h2>
             {world && <p className="text-slate-500 font-orbitron text-xs mb-2">{world.emoji} {world.name}</p>}
-            <p className="text-slate-400 font-mono text-sm mb-1">Waves cleared: {result.wavesCleared}/5</p>
+            <p className="text-slate-400 font-mono text-sm mb-1">Waves cleared: {result.wavesCleared}/5 · Score: {result.score}</p>
             <p className="text-neon-amber font-orbitron text-xs mb-3">+{result.xpGained} XP</p>
             {result.won && defeatQuote && (
               <div className="bg-dark-900/80 rounded-xl px-4 py-3 mb-3 border border-neon-cyan/20 text-left">
@@ -123,7 +124,7 @@ export default function NodeDefenderPage() {
             </div>
             <div className="flex gap-3 justify-center">
               <Button onClick={() => navigate('/campaign')} variant="ghost">← BACK</Button>
-              <Button onClick={startGame} variant="neon" disabled={!profile}>DEFEND!</Button>
+              <Button onClick={() => setStarted(true)} variant="neon" disabled={profile === null}>DEFEND!</Button>
             </div>
           </div>
         </div>
@@ -132,8 +133,8 @@ export default function NodeDefenderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-grid flex items-center justify-center" style={{ background: '#04060f' }}>
-      <div id="defender-canvas" ref={containerRef} className="w-full max-w-lg" style={{ aspectRatio: '3/4' }} />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#04060f' }}>
+      <div ref={containerRef} className="w-full max-w-lg" style={{ aspectRatio: '3/4' }} />
     </div>
   );
 }
