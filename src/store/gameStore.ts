@@ -58,6 +58,7 @@ const defaultBattle: BattleState = {
   isPerfect: true,
   terrainBonusActive: false,
   terrainName: '',
+  terrainTimerBonus: 0,
   trapStack: [],
   trapReady: false,
 };
@@ -128,6 +129,7 @@ export const useGameStore = create<GameStore>()(
         isPerfect: true,
         terrainBonusActive,
         terrainName,
+        terrainTimerBonus: terrainBonusActive && terrain ? terrain.timerBonus : 0,
         trapStack: [],
         trapReady: false,
         // Store hero class + shuffled questions for advancing
@@ -214,7 +216,7 @@ export const useGameStore = create<GameStore>()(
       damageDealt,
       damageTaken,
       xpGained,
-      scoreGained: damageDealt * 10,
+      scoreGained: newScore - battle.score,
       explanation: q.explanation,
     };
 
@@ -263,7 +265,7 @@ export const useGameStore = create<GameStore>()(
         questionIndex: nextIndex,
         selectedAnswerIndex: null,
         answerResult: null,
-        timeRemaining: nextQ.timeLimitSec,
+        timeRemaining: nextQ.timeLimitSec + (battle.terrainTimerBonus || 0),
       },
     }));
   },

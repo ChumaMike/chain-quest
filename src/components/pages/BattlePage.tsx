@@ -45,8 +45,10 @@ export default function BattlePage() {
   const [eliminatedWrong, setEliminatedWrong] = useState<number | null>(null);
   const [isShaking, setIsShaking] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
+  const [victoryCountdown, setVictoryCountdown] = useState(30);
   const [showDefeat, setShowDefeat] = useState(false);
   const [claimResult, setClaimResult] = useState<any>(null);
+  const [isClaiming, setIsClaiming] = useState(false);
   const [battlePhase, setBattlePhase] = useState<'intro' | 'fighting'>('intro');
   const [introStage, setIntroStage] = useState<0 | 1 | 2>(0);
   const [streakAnim, setStreakAnim] = useState(false);
@@ -204,21 +206,21 @@ export default function BattlePage() {
         return;
       }
       if (current.bossHP <= 0) {
-        finishWorld(result.correct);
+        finishWorld(current.isPerfect, current.score, current.xpGained);
         return;
       }
       advanceQuestion();
     }, 2500);
   }, [battle, submitAnswer, advanceQuestion, bossEnraged, world, heroClass]);
 
-  const finishWorld = (perfect: boolean) => {
+  const finishWorld = (perfect: boolean, finalScore: number, finalXP: number) => {
     if (!user || !token) return;
-    completeWorld(wId, battle.score);
-    addXP(battle.xpGained);
+    completeWorld(wId, finalScore);
+    addXP(finalXP);
     apiFetch(`/api/profile/${user.id}/world-complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ worldId: wId, score: battle.score, stars: battle.score > 5000 ? 3 : 2, perfect }),
+      body: JSON.stringify({ worldId: wId, score: finalScore, stars: finalScore > 5000 ? 3 : finalScore > 2500 ? 2 : 1, perfect }),
     });
     if (world) {
       socket.announceBossClear(wId, world.name, world.boss.name);
@@ -233,9 +235,14 @@ export default function BattlePage() {
   };
 
   const handleClaim = async () => {
-    if (!token) return;
-    const result = await claimReward(wId, token);
-    setClaimResult(result);
+    if (!token || isClaiming) return;
+    setIsClaiming(true);
+    try {
+      const result = await claimReward(wId, token);
+      setClaimResult(result);
+    } finally {
+      setIsClaiming(false);
+    }
   };
 
   useEffect(() => {
@@ -245,6 +252,23 @@ export default function BattlePage() {
       return () => clearTimeout(t);
     }
   }, [battle.streak]);
+
+  // Victory auto-dismiss countdown
+  useEffect(() => {
+    if (!showVictory) return;
+    setVictoryCountdown(30);
+    const interval = setInterval(() => {
+      setVictoryCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          navigate('/open-world');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showVictory, navigate]);
 
   useCountdown(battle.phase === 'question', () => useGameStore.getState().tickTimer(), 1000);
 
@@ -608,15 +632,19 @@ export default function BattlePage() {
               <div className="bg-dark-900 rounded-lg p-3"><div className="font-orbitron text-neon-amber text-lg">{battle.isPerfect ? '⭐⭐⭐' : '⭐⭐'}</div><div className="text-slate-600 text-xs">STARS</div></div>
             </div>
             {!claimResult ? (
-              <Button onClick={handleClaim} variant="neon" className="w-full mb-3">
-                💎 CLAIM {world.cqtReward} CQT TOKENS
+              <Button onClick={handleClaim} variant="neon" className="w-full mb-3" disabled={isClaiming}>
+                {isClaiming ? '⏳ CLAIMING...' : `💎 CLAIM ${world.cqtReward} CQT TOKENS`}
               </Button>
             ) : (
               <div className="mb-3 px-4 py-2 rounded bg-neon-green/10 border border-neon-green/30 text-neon-green text-sm font-mono">
                 ✓ {claimResult.simulated ? 'Simulated' : 'TX confirmed'}: {claimResult.txHash?.slice(0, 20)}...
               </div>
             )}
-            <Button onClick={() => navigate('/campaign')} variant="ghost" className="w-full">← RETURN TO CAMPAIGN</Button>
+            <div className="flex gap-3 mt-1">
+              <Button onClick={() => navigate('/open-world')} variant="primary" className="flex-1">🌍 OPEN WORLD</Button>
+              <Button onClick={() => navigate('/campaign')} variant="ghost" className="flex-1">← CAMPAIGN</Button>
+            </div>
+            <p className="text-slate-700 text-xs mt-2 font-mono">Auto-returning in {victoryCountdown}s</p>
           </div>
         </Modal>
 

@@ -197,6 +197,14 @@ export default function OpenWorldPage() {
         />
       </div>
 
+      {/* Campaign map shortcut */}
+      <button
+        onClick={() => navigate('/campaign')}
+        className="absolute top-2 left-2 sm:left-4 z-20 flex items-center gap-1 px-2 py-1 rounded font-orbitron text-xs border border-neon-cyan/30 bg-dark-900/70 text-neon-cyan/70 hover:text-neon-cyan hover:border-neon-cyan/60 backdrop-blur-sm"
+      >
+        ← MAP
+      </button>
+
       {/* HUD overlay */}
       <div className={`absolute top-16 left-2 sm:left-4 z-10 space-y-1.5 sm:space-y-2 game-hud ${IS_MOBILE ? 'w-36' : 'w-48'}`}>
         {/* HP bar */}

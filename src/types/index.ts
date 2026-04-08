@@ -177,6 +177,7 @@ export interface BattleState {
   isPerfect: boolean;
   terrainBonusActive: boolean;
   terrainName: string;
+  terrainTimerBonus: number;
   trapStack: string[];
   trapReady: boolean;
 }

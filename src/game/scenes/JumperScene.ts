@@ -35,6 +35,7 @@ export default class JumperScene extends Phaser.Scene {
   private lives = 3;
   private platformsLanded = 0;
   private phase: JumperPhase = 'playing';
+  private _justLanded = false;
   private questions: Question[] = [];
   private currentQ: Question | null = null;
   private questionPool: Question[] = [];
@@ -336,12 +337,12 @@ export default class JumperScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.spaceKey) || Phaser.Input.Keyboard.JustDown(this.cursors.up!)) {
       this.tryJump();
     }
-    // Auto-bounce on platform landing (basic)
-    if (this.playerBody.blocked.down && !Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-      // Auto-jump for casual feel — only if not already moving up
-      if (this.playerBody.velocity.y >= 0) {
-        this.playerBody.setVelocityY(JUMP_VELOCITY);
-      }
+    // Auto-bounce on platform landing — debounced so it fires once per landing, not every frame
+    if (this.playerBody.blocked.down && this.playerBody.velocity.y >= 0 && !this._justLanded) {
+      this._justLanded = true;
+      this.playerBody.setVelocityY(JUMP_VELOCITY);
+      // Reset flag after the player leaves the ground
+      this.time.delayedCall(100, () => { this._justLanded = false; });
     }
   }
 

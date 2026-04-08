@@ -73,7 +73,7 @@ export default function NodeDefenderPage() {
     };
   }, [started]);
 
-  const handleExit = () => navigate('/campaign');
+  const handleExit = () => navigate('/open-world');
 
   if (result) {
     const defeatQuote = worldId ? KARABO_BOSS_DEFEAT[worldId] : null;
@@ -126,7 +126,7 @@ export default function NodeDefenderPage() {
               ))}
             </div>
             <div className="flex gap-3 justify-center">
-              <Button onClick={() => navigate('/campaign')} variant="ghost">← BACK</Button>
+              <Button onClick={() => navigate('/open-world')} variant="ghost">← BACK</Button>
               <Button onClick={() => setStarted(true)} variant="neon" disabled={profile === null}>DEFEND!</Button>
             </div>
           </div>
