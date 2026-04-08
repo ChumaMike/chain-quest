@@ -48,6 +48,9 @@ export default class OpenWorldScene extends Phaser.Scene {
   private myBubble?: { text: Phaser.GameObjects.Text; bg: Phaser.GameObjects.Rectangle; ttl: number };
   private studyNPCs: Array<{ container: Phaser.GameObjects.Container; worldId: number; talkCooldown: number }> = [];
   private miniGamePortalData: Array<{ x: number; y: number; radius: number; sceneKey: string }> = [];
+  private jumpCooldown = 0;
+  private isJumping = false;
+  private spaceKey!: Phaser.Input.Keyboard.Key;
 
   // Event bus for React communication
   public static events = new Phaser.Events.EventEmitter();
@@ -111,12 +114,12 @@ export default class OpenWorldScene extends Phaser.Scene {
     g.strokeRect(HUB_CONFIG.x, HUB_CONFIG.y, HUB_CONFIG.width, HUB_CONFIG.height);
 
     // Hub label
-    this.add.text(HUB_CONFIG.x + HUB_CONFIG.width / 2, HUB_CONFIG.y + 30, '⚡ CENTRAL HUB', {
-      fontFamily: 'Orbitron', fontSize: '14px', color: '#ffffff',
-    }).setOrigin(0.5).setAlpha(0.6);
-    this.add.text(HUB_CONFIG.x + HUB_CONFIG.width / 2, HUB_CONFIG.y + 55, 'SHOP · LEADERBOARD · SPAWN', {
-      fontFamily: 'Share Tech Mono', fontSize: '10px', color: '#ffffff',
-    }).setOrigin(0.5).setAlpha(0.3);
+    this.add.text(HUB_CONFIG.x + HUB_CONFIG.width / 2, HUB_CONFIG.y + 30, '⚡ SOCIAL HUB', {
+      fontFamily: 'Orbitron', fontSize: '16px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setAlpha(0.85);
+    this.add.text(HUB_CONFIG.x + HUB_CONFIG.width / 2, HUB_CONFIG.y + 55, 'SHOP · LEADERBOARD · SPAWN · MINI-GAMES', {
+      fontFamily: 'Share Tech Mono', fontSize: '9px', color: '#aaaaaa',
+    }).setOrigin(0.5).setAlpha(0.5);
 
     // Draw each zone
     for (const zone of ZONE_CONFIGS) {
@@ -132,7 +135,7 @@ export default class OpenWorldScene extends Phaser.Scene {
       g.fillRect(zone.x, zone.y, zone.width, zone.height);
 
       // Zone border (neon)
-      g.lineStyle(2, col, 0.5);
+      g.lineStyle(3, col, 0.75);
       g.strokeRect(zone.x, zone.y, zone.width, zone.height);
 
       // Grid lines inside zone
@@ -146,13 +149,14 @@ export default class OpenWorldScene extends Phaser.Scene {
 
       // Zone name
       const isCompleted = this.completedWorlds.includes(zone.worldId);
-      this.add.text(zone.x + zone.width / 2, zone.y + 25, `ZONE ${zone.worldId}`, {
-        fontFamily: 'Orbitron', fontSize: '11px',
+      this.add.text(zone.x + zone.width / 2, zone.y + 25, `W${zone.worldId}`, {
+        fontFamily: 'Orbitron', fontSize: '13px',
         color: `#${col.toString(16).padStart(6, '0')}`,
-      }).setOrigin(0.5).setAlpha(0.7);
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5).setAlpha(0.9);
       this.add.text(zone.x + zone.width / 2, zone.y + 45, zone.name.toUpperCase(), {
-        fontFamily: 'Orbitron', fontSize: '9px',
-        color: isCompleted ? '#00ff88' : '#888888',
+        fontFamily: 'Orbitron', fontSize: '10px',
+        color: isCompleted ? '#00ff88' : '#cccccc',
       }).setOrigin(0.5);
       if (isCompleted) {
         this.add.text(zone.x + zone.width / 2, zone.y + 62, '✓ CLEARED', {
@@ -294,10 +298,13 @@ export default class OpenWorldScene extends Phaser.Scene {
       const col = WORLD_COLORS[zone.worldId] || 0xffffff;
       const { x, y, radius } = zone.bossZone;
 
-      // Boss portal
+      // Portal arc — collision detection reads .radius/.worldId/.zoneX/.zoneY from this
       const portal = this.add.arc(x, y, radius, 0, 360, false, col, 0.1);
       portal.setStrokeStyle(3, col, 0.8);
       this.bossZones.push(portal);
+      (portal as any).worldId = zone.worldId;
+      (portal as any).zoneX = x;
+      (portal as any).zoneY = y;
 
       // Inner glow ring
       const innerRing = this.add.arc(x, y, radius * 0.6, 0, 360, false, col, 0.2);
@@ -306,26 +313,63 @@ export default class OpenWorldScene extends Phaser.Scene {
         scaleX: { from: 0.8, to: 1.2 },
         scaleY: { from: 0.8, to: 1.2 },
         alpha: { from: 0.2, to: 0.05 },
-        duration: 2000,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
+        duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
       });
 
-      // Boss zone label
-      this.add.text(x, y - radius - 16, '⚠ BOSS ZONE', {
-        fontFamily: 'Orbitron', fontSize: '8px',
-        color: `#${col.toString(16).padStart(6, '0')}`,
-        stroke: '#000000', strokeThickness: 2,
-      }).setOrigin(0.5);
-      this.add.text(x, y, `WORLD ${zone.worldId}`, {
-        fontFamily: 'Orbitron', fontSize: '7px', color: '#ffffff',
-      }).setOrigin(0.5).setAlpha(0.6);
+      // Gate structure (arch + pillars)
+      const gateW = radius * 2.4;
+      const gateH = 12;
+      const gateTopY = y - radius - 4;
+      const pillarH = 28;
+      const pillarW = 10;
 
-      // Store worldId
-      (portal as any).worldId = zone.worldId;
-      (portal as any).zoneX = x;
-      (portal as any).zoneY = y;
+      const gateG = this.add.graphics();
+      // Arch bar
+      gateG.fillStyle(col, 0.22);
+      gateG.fillRect(x - gateW / 2, gateTopY - gateH, gateW, gateH);
+      gateG.lineStyle(2, col, 0.9);
+      gateG.strokeRect(x - gateW / 2, gateTopY - gateH, gateW, gateH);
+      // Left pillar
+      gateG.fillStyle(col, 0.28);
+      gateG.fillRect(x - gateW / 2 - pillarW, gateTopY - gateH - pillarH, pillarW, gateH + pillarH);
+      gateG.lineStyle(1, col, 0.7);
+      gateG.strokeRect(x - gateW / 2 - pillarW, gateTopY - gateH - pillarH, pillarW, gateH + pillarH);
+      // Right pillar
+      gateG.fillStyle(col, 0.28);
+      gateG.fillRect(x + gateW / 2, gateTopY - gateH - pillarH, pillarW, gateH + pillarH);
+      gateG.lineStyle(1, col, 0.7);
+      gateG.strokeRect(x + gateW / 2, gateTopY - gateH - pillarH, pillarW, gateH + pillarH);
+      // Pulse gate alpha
+      this.tweens.add({
+        targets: gateG,
+        alpha: { from: 0.7, to: 1.0 },
+        duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+
+      // World name label above gate
+      const labelY = gateTopY - gateH - pillarH - 18;
+      this.add.text(x, labelY,
+        `WORLD ${zone.worldId}: ${zone.name.toUpperCase()}`,
+        {
+          fontFamily: 'Orbitron', fontSize: '8px',
+          color: `#${col.toString(16).padStart(6, '0')}`,
+          stroke: '#000000', strokeThickness: 3,
+        }
+      ).setOrigin(0.5);
+
+      // Blinking "ENTER TO BATTLE" sub-label
+      const tapLabel = this.add.text(x, gateTopY - gateH - pillarH - 5,
+        '— ENTER TO BATTLE —',
+        {
+          fontFamily: 'Share Tech Mono', fontSize: '7px',
+          color: '#ffffff', stroke: '#000000', strokeThickness: 2,
+        }
+      ).setOrigin(0.5).setAlpha(0.5);
+      this.tweens.add({
+        targets: tapLabel,
+        alpha: { from: 0.3, to: 0.9 },
+        duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
     }
   }
 
@@ -494,6 +538,12 @@ export default class OpenWorldScene extends Phaser.Scene {
       }
     });
 
+    // Spacebar jump (desktop)
+    this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+    // Mobile jump button from React overlay
+    OpenWorldScene.events.on('mobile:jump', () => { this.doJump(); });
+
     // Mobile fight button
     OpenWorldScene.events.on('mobile:fight', () => {
       if (this.battleTriggerCooldown > 0) return;
@@ -627,6 +677,44 @@ export default class OpenWorldScene extends Phaser.Scene {
     return 'Wilderness';
   }
 
+  doJump() {
+    if (this.isJumping || this.jumpCooldown > 0) return;
+    this.isJumping = true;
+    this.jumpCooldown = 600;
+    // Phase 1: gather (squash down)
+    this.tweens.add({
+      targets: this.player,
+      scaleX: 0.85, scaleY: 1.3,
+      duration: 80, ease: 'Quad.easeOut',
+      onComplete: () => {
+        // Phase 2: pop (extend up)
+        this.tweens.add({
+          targets: this.player,
+          scaleX: 1.2, scaleY: 0.75,
+          duration: 100, ease: 'Quad.easeOut',
+          onComplete: () => {
+            // Phase 3: land bounce
+            this.tweens.add({
+              targets: this.player,
+              scaleX: 0.9, scaleY: 1.1,
+              duration: 90, ease: 'Bounce.easeOut',
+              onComplete: () => {
+                // Phase 4: settle
+                this.tweens.add({
+                  targets: this.player,
+                  scaleX: 1, scaleY: 1,
+                  duration: 120, ease: 'Elastic.easeOut',
+                  onComplete: () => { this.isJumping = false; },
+                });
+                this.cameras.main.shake(50, 0.002);
+              },
+            });
+          },
+        });
+      },
+    });
+  }
+
   update(time: number, delta: number) {
     this.movePlayer(delta);
     this.interpolateRemotePlayers(delta);
@@ -651,6 +739,8 @@ export default class OpenWorldScene extends Phaser.Scene {
     }
 
     if (this.battleTriggerCooldown > 0) this.battleTriggerCooldown -= delta;
+    if (this.jumpCooldown > 0) this.jumpCooldown -= delta;
+    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) this.doJump();
   }
 
   tickChatBubbles(delta: number) {

@@ -149,15 +149,9 @@ export default function OpenWorldPage() {
   }, [socket]);
 
   const handleBattleTrigger = useCallback((worldId: number, isBoss: boolean) => {
-    const world = WORLDS.find(w => w.id === worldId);
-    if (world && world.unlockLevel > currentLevel) {
-      setLockedMsg(`World ${worldId} requires Level ${world.unlockLevel} (you are Level ${currentLevel})`);
-      setTimeout(() => setLockedMsg(null), 3500);
-      return;
-    }
     setBattlePrompt({ worldId, isBoss });
     setTimeout(() => setBattlePrompt(null), 5000);
-  }, [currentLevel]);
+  }, []);
 
   const enterBattle = () => {
     if (battlePrompt) navigate(`/battle/${battlePrompt.worldId}`);
@@ -461,7 +455,7 @@ export default function OpenWorldPage() {
       {/* Controls hint — desktop only */}
       {!IS_MOBILE && (
         <div className="absolute bottom-4 right-4 z-10 text-slate-700 text-xs font-mono">
-          WASD / ARROWS · Scroll to zoom
+          WASD / ARROWS · SPACE to jump · Scroll to zoom
         </div>
       )}
 
@@ -590,6 +584,15 @@ export default function OpenWorldPage() {
             }}
           >
             ⚔<br />FIGHT
+          </button>
+
+          {/* JUMP button — bottom right, left of FIGHT */}
+          <button
+            className="joystick-zone absolute z-30 flex items-center justify-center w-16 h-16 rounded-full font-orbitron text-xs font-black border-2 border-neon-cyan/60 bg-neon-cyan/15 active:bg-neon-cyan/35 backdrop-blur-sm text-neon-cyan"
+            style={{ bottom: 24, right: 100 }}
+            onPointerDown={() => { OpenWorldScene.events.emit('mobile:jump'); }}
+          >
+            ↑<br />JUMP
           </button>
         </>
       )}
