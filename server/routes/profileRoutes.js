@@ -64,7 +64,8 @@ router.post('/:userId/world-complete', authMiddleware, (req, res) => {
     if (userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
 
     const { worldId, score, stars, perfect } = req.body;
-    const CQT_REWARDS = [0, 10, 20, 30, 40, 50, 75, 100];
+    // CQT rewards match curriculum.ts cqtReward fields for all 16 worlds
+    const CQT_REWARDS = [0, 10, 20, 30, 40, 50, 75, 100, 110, 120, 130, 140, 150, 160, 170, 180, 200];
     const cqtReward = (CQT_REWARDS[worldId] || 0) + (perfect ? 10 : 0);
 
     worldHelpers.upsert(userId, worldId, {
